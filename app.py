@@ -14,15 +14,21 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "ahmed_gamal_math_platform_2026_zizo")
+app.secret_key = (os.environ.get("SECRET_KEY") or "ahmed_gamal_math_platform_2026_zizo").strip()
 
 # قاعدة بيانات تدعم Supabase PostgreSQL في الإنتاج و SQLite محلياً
-database_url = os.environ.get("DATABASE_URL", "sqlite:///ahmed_gamal_math_v1.db")
-if database_url.startswith("postgres://"):
-    database_url = database_url.replace("postgres://", "postgresql://", 1)
+raw_db_url = (os.environ.get("DATABASE_URL") or "sqlite:///ahmed_gamal_math_v1.db").strip()
+if raw_db_url.startswith("postgres://"):
+    raw_db_url = raw_db_url.replace("postgres://", "postgresql://", 1)
 
-app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+app.config["SQLALCHEMY_DATABASE_URI"] = raw_db_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+    "pool_pre_ping": True,
+    "pool_recycle": 300,
+    "pool_size": 5,
+    "max_overflow": 5,
+}
 app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024
 
 if os.environ.get("VERCEL"):
@@ -167,12 +173,16 @@ class AccessCode(db.Model):
 # ===================== دوال مساعدة ومحرك المستوى التلقائي =====================
 
 def get_settings():
-    settings = PlatformSettings.query.first()
-    if not settings:
-        settings = PlatformSettings()
-        db.session.add(settings)
-        db.session.commit()
-    return settings
+    try:
+        settings = PlatformSettings.query.first()
+        if not settings:
+            settings = PlatformSettings()
+            db.session.add(settings)
+            db.session.commit()
+        return settings
+    except Exception:
+        db.session.rollback()
+        return PlatformSettings()
 
 
 def save_uploaded_file(file_obj, target_folder, url_prefix):
@@ -311,7 +321,13 @@ def admin_required(f):
 
 @app.context_processor
 def inject_globals():
-    current_user = User.query.get(session["user_id"]) if "user_id" in session else None
+    current_user = None
+    if "user_id" in session:
+        try:
+            current_user = User.query.get(session["user_id"])
+        except Exception:
+            db.session.rollback()
+            current_user = None
     return dict(
         settings=get_settings(),
         current_user=current_user,
@@ -811,6 +827,12 @@ def generate_codes():
     return redirect(url_for("admin_dashboard", grade=grade))
 
 
+@app.errorhandler(500)
+def internal_error(error):
+    db.session.rollback()
+    return render_template("index.html", weeks=[], selected_grade="", grade_counts={g: 0 for g in GRADES}, students_count=0, videos_count=0, exams_count=0), 500
+
+
 # ===================== تهيئة قاعدة البيانات وحساب المدرس لـ Vercel و Supabase =====================
 
 _db_initialized = False
@@ -820,9 +842,12 @@ def init_db():
     global _db_initialized
     if _db_initialized:
         return
-    with app.app_context():
+    try:
         db.create_all()
-        get_settings()
+        settings = PlatformSettings.query.first()
+        if not settings:
+            db.session.add(PlatformSettings())
+            db.session.commit()
         if not User.query.filter_by(role="admin").first():
             admin = User(
                 username="Mr_Ahmed_Gamal_Math2026",
@@ -834,7 +859,10 @@ def init_db():
             )
             db.session.add(admin)
             db.session.commit()
-    _db_initialized = True
+        _db_initialized = True
+    except Exception as exc:
+        db.session.rollback()
+        print("Database initialization error:", exc)
 
 
 @app.before_request
