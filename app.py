@@ -4,7 +4,7 @@ import random
 import string
 from datetime import datetime
 from functools import wraps
-from urllib.parse import quote
+from urllib.parse import quote, urlparse, parse_qsl, urlencode, urlunparse
 from flask import (
     Flask, render_template, request, redirect, url_for,
     session, flash
@@ -16,23 +16,39 @@ from werkzeug.utils import secure_filename
 app = Flask(__name__)
 app.secret_key = (os.environ.get("SECRET_KEY") or "ahmed_gamal_math_platform_2026_zizo").strip()
 
-# قاعدة بيانات تدعم Supabase PostgreSQL في الإنتاج و SQLite محلياً
-raw_db_url = (os.environ.get("DATABASE_URL") or "sqlite:///ahmed_gamal_math_v1.db").strip()
-if raw_db_url.startswith("postgres://"):
-    raw_db_url = raw_db_url.replace("postgres://", "postgresql://", 1)
 
-app.config["SQLALCHEMY_DATABASE_URI"] = raw_db_url
+def normalize_db_url(raw_url: str) -> str:
+    url = (raw_url or "").strip()
+    if not url:
+        return "sqlite:///ahmed_gamal_math_v1.db"
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql://", 1)
+    if url.startswith("postgresql://"):
+        parsed = urlparse(url)
+        query_params = dict(parse_qsl(parsed.query))
+        if "sslmode" not in query_params:
+            query_params["sslmode"] = "require"
+        new_query = urlencode(query_params)
+        url = urlunparse(parsed._replace(query=new_query))
+    return url
+
+
+db_uri = normalize_db_url(os.environ.get("DATABASE_URL") or "")
+app.config["SQLALCHEMY_DATABASE_URI"] = db_uri
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-if not raw_db_url.startswith("sqlite"):
+
+if not db_uri.startswith("sqlite"):
     app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
         "pool_pre_ping": True,
         "pool_recycle": 300,
-        "pool_size": 5,
-        "max_overflow": 5,
+        "pool_size": 3,
+        "max_overflow": 2,
     }
+
 app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024
 
-if os.environ.get("VERCEL"):
+is_vercel = bool(os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV"))
+if is_vercel:
     BASE_UPLOAD_DIR = "/tmp/uploads"
 else:
     BASE_UPLOAD_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), "static", "uploads")
@@ -42,7 +58,10 @@ UPLOAD_FILES = os.path.join(BASE_UPLOAD_DIR, "files")
 UPLOAD_IMAGES = os.path.join(BASE_UPLOAD_DIR, "images")
 
 for folder in [UPLOAD_VIDEOS, UPLOAD_FILES, UPLOAD_IMAGES]:
-    os.makedirs(folder, exist_ok=True)
+    try:
+        os.makedirs(folder, exist_ok=True)
+    except Exception:
+        pass
 
 db = SQLAlchemy(app)
 
@@ -81,7 +100,7 @@ class User(db.Model):
     governorate = db.Column(db.String(80), default="الدقهلية")
     grade = db.Column(db.String(80), nullable=True)
     password_hash = db.Column(db.String(255), nullable=False)
-    role = db.Column(db.String(20), default="student")  # admin أو student
+    role = db.Column(db.String(20), default="student")
     is_active = db.Column(db.Boolean, default=False)
     session_token = db.Column(db.String(100), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -106,7 +125,7 @@ class WeekContent(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     week_id = db.Column(db.Integer, db.ForeignKey("week.id"), nullable=False)
     title = db.Column(db.String(200), nullable=False)
-    content_type = db.Column(db.String(30), nullable=False)  # video_upload, video_link, file_upload, file_link
+    content_type = db.Column(db.String(30), nullable=False)
     source_path = db.Column(db.String(500), nullable=False)
     duration_or_notes = db.Column(db.String(150), default="")
     order_num = db.Column(db.Integer, default=1)
@@ -139,7 +158,7 @@ class ExamQuestion(db.Model):
     option_b = db.Column(db.String(250), nullable=False)
     option_c = db.Column(db.String(250), nullable=False)
     option_d = db.Column(db.String(250), nullable=False)
-    correct_option = db.Column(db.String(5), nullable=False)  # A, B, C, D
+    correct_option = db.Column(db.String(5), nullable=False)
 
 
 class ExamResult(db.Model):
@@ -182,7 +201,10 @@ def get_settings():
             db.session.commit()
         return settings
     except Exception:
-        db.session.rollback()
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
         return PlatformSettings()
 
 
@@ -219,7 +241,6 @@ def clean_wa_phone(phone):
 
 
 def evaluate_student_level(student):
-    """حساب مستوى الطالب تلقائياً من مشاهدة الفيديوهات وحل الامتحانات ودرجاته"""
     grade_weeks = Week.query.filter_by(grade=student.grade, is_published=True).all()
     week_ids = [w.id for w in grade_weeks]
 
@@ -297,7 +318,7 @@ def login_required(f):
         if "user_id" not in session:
             flash("يرجى تسجيل الدخول أولاً.", "warning")
             return redirect(url_for("auth"))
-        user = User.query.get(session["user_id"])
+        user = db.session.get(User, session["user_id"])
         if not user or user.session_token != session.get("session_token"):
             session.clear()
             flash("تم فتح الحساب من جهاز آخر، يرجى تسجيل الدخول مرة أخرى.", "danger")
@@ -312,7 +333,7 @@ def admin_required(f):
         if "user_id" not in session:
             flash("سجل دخولك بحساب المدرس أولاً.", "warning")
             return redirect(url_for("auth"))
-        user = User.query.get(session["user_id"])
+        user = db.session.get(User, session["user_id"])
         if not user or user.role != "admin":
             flash("هذا القسم مخصص للمدرس فقط.", "danger")
             return redirect(url_for("index"))
@@ -325,9 +346,12 @@ def inject_globals():
     current_user = None
     if "user_id" in session:
         try:
-            current_user = User.query.get(session["user_id"])
+            current_user = db.session.get(User, session["user_id"])
         except Exception:
-            db.session.rollback()
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
             current_user = None
     return dict(
         settings=get_settings(),
@@ -343,15 +367,26 @@ def inject_globals():
 @app.route("/")
 def index():
     selected_grade = request.args.get("grade", "").strip()
-    weeks_query = Week.query.filter_by(is_published=True)
-    if selected_grade:
-        weeks_query = weeks_query.filter_by(grade=selected_grade)
-    weeks = weeks_query.order_by(Week.order_num.asc()).all()
+    try:
+        weeks_query = Week.query.filter_by(is_published=True)
+        if selected_grade:
+            weeks_query = weeks_query.filter_by(grade=selected_grade)
+        weeks = weeks_query.order_by(Week.order_num.asc()).all()
 
-    grade_counts = {g: User.query.filter_by(role="student", grade=g).count() for g in GRADES}
-    students_count = User.query.filter_by(role="student").count()
-    videos_count = WeekContent.query.filter(WeekContent.content_type.like("video%")).count()
-    exams_count = Exam.query.count()
+        grade_counts = {g: User.query.filter_by(role="student", grade=g).count() for g in GRADES}
+        students_count = User.query.filter_by(role="student").count()
+        videos_count = WeekContent.query.filter(WeekContent.content_type.like("video%")).count()
+        exams_count = Exam.query.count()
+    except Exception:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        weeks = []
+        grade_counts = {g: 0 for g in GRADES}
+        students_count = 0
+        videos_count = 0
+        exams_count = 0
 
     return render_template(
         "index.html",
@@ -445,7 +480,7 @@ def logout():
 @app.route("/student")
 @login_required
 def student_dashboard():
-    user = User.query.get(session["user_id"])
+    user = db.session.get(User, session["user_id"])
     if user.role == "admin":
         return redirect(url_for("admin_dashboard"))
 
@@ -458,7 +493,9 @@ def student_dashboard():
     can_access = False
 
     if selected_week_id:
-        active_week = Week.query.get_or_404(selected_week_id)
+        active_week = db.session.get(Week, selected_week_id)
+        if not active_week:
+            return redirect(url_for("student_dashboard"))
         if active_week.is_free or user.is_active or (active_week.id in unlocked_ids):
             can_access = True
 
@@ -486,8 +523,10 @@ def student_dashboard():
 @app.route("/student/watch/<int:content_id>", methods=["POST"])
 @login_required
 def mark_watched(content_id):
-    user = User.query.get(session["user_id"])
-    content = WeekContent.query.get_or_404(content_id)
+    user = db.session.get(User, session["user_id"])
+    content = db.session.get(WeekContent, content_id)
+    if not content:
+        return redirect(url_for("student_dashboard"))
     existing = VideoProgress.query.filter_by(user_id=user.id, content_id=content.id).first()
     if not existing:
         db.session.add(VideoProgress(user_id=user.id, content_id=content.id))
@@ -499,7 +538,7 @@ def mark_watched(content_id):
 @app.route("/student/redeem", methods=["POST"])
 @login_required
 def redeem_code():
-    user = User.query.get(session["user_id"])
+    user = db.session.get(User, session["user_id"])
     code_str = request.form.get("code", "").strip().upper()
     code_obj = AccessCode.query.filter_by(code=code_str, is_used=False).first()
 
@@ -531,8 +570,10 @@ def redeem_code():
 @app.route("/exam/<int:exam_id>", methods=["GET", "POST"])
 @login_required
 def take_exam(exam_id):
-    user = User.query.get(session["user_id"])
-    exam = Exam.query.get_or_404(exam_id)
+    user = db.session.get(User, session["user_id"])
+    exam = db.session.get(Exam, exam_id)
+    if not exam:
+        return redirect(url_for("student_dashboard"))
 
     if request.method == "POST":
         questions = exam.questions
@@ -637,7 +678,7 @@ def update_settings():
 
     new_admin_pass = request.form.get("new_admin_pass", "").strip()
     if new_admin_pass:
-        admin_user = User.query.get(session["user_id"])
+        admin_user = db.session.get(User, session["user_id"])
         admin_user.password_hash = generate_password_hash(new_admin_pass)
 
     db.session.commit()
@@ -675,21 +716,24 @@ def add_week():
 @app.route("/admin/week/toggle/<int:week_id>", methods=["POST"])
 @admin_required
 def toggle_week(week_id):
-    week = Week.query.get_or_404(week_id)
-    week.is_published = not week.is_published
-    db.session.commit()
-    flash("تم تحديث حالة نشر الدرس/الأسبوع.", "success")
-    return redirect(url_for("admin_dashboard", grade=week.grade))
+    week = db.session.get(Week, week_id)
+    if week:
+        week.is_published = not week.is_published
+        db.session.commit()
+        flash("تم تحديث حالة نشر الدرس/الأسبوع.", "success")
+        return redirect(url_for("admin_dashboard", grade=week.grade))
+    return redirect(url_for("admin_dashboard"))
 
 
 @app.route("/admin/week/delete/<int:week_id>", methods=["POST"])
 @admin_required
 def delete_week(week_id):
-    week = Week.query.get_or_404(week_id)
-    g = week.grade
-    db.session.delete(week)
-    db.session.commit()
-    flash("تم حذف الدرس/الأسبوع ومحتوياته.", "info")
+    week = db.session.get(Week, week_id)
+    g = week.grade if week else ""
+    if week:
+        db.session.delete(week)
+        db.session.commit()
+        flash("تم حذف الدرس/الأسبوع ومحتوياته.", "info")
     return redirect(url_for("admin_dashboard", grade=g))
 
 
@@ -697,7 +741,9 @@ def delete_week(week_id):
 @admin_required
 def add_content():
     week_id = request.form.get("week_id", type=int)
-    week = Week.query.get_or_404(week_id)
+    week = db.session.get(Week, week_id)
+    if not week:
+        return redirect(url_for("admin_dashboard"))
     title = request.form.get("title", "").strip()
     content_type = request.form.get("content_type", "")
     duration_or_notes = request.form.get("duration_or_notes", "").strip()
@@ -732,11 +778,12 @@ def add_content():
 @app.route("/admin/content/delete/<int:content_id>", methods=["POST"])
 @admin_required
 def delete_content(content_id):
-    content = WeekContent.query.get_or_404(content_id)
-    g = content.week.grade if content.week else ""
-    db.session.delete(content)
-    db.session.commit()
-    flash("تم حذف المحتوى.", "info")
+    content = db.session.get(WeekContent, content_id)
+    g = content.week.grade if content and content.week else ""
+    if content:
+        db.session.delete(content)
+        db.session.commit()
+        flash("تم حذف المحتوى.", "info")
     return redirect(url_for("admin_dashboard", grade=g))
 
 
@@ -764,7 +811,9 @@ def add_exam():
 @admin_required
 def add_question():
     exam_id = request.form.get("exam_id", type=int)
-    exam = Exam.query.get_or_404(exam_id)
+    exam = db.session.get(Exam, exam_id)
+    if not exam:
+        return redirect(url_for("admin_dashboard"))
     question_text = request.form.get("question_text", "").strip()
     option_a = request.form.get("option_a", "").strip()
     option_b = request.form.get("option_b", "").strip()
@@ -790,22 +839,25 @@ def add_question():
 @app.route("/admin/exam/delete/<int:exam_id>", methods=["POST"])
 @admin_required
 def delete_exam(exam_id):
-    exam = Exam.query.get_or_404(exam_id)
-    g = exam.grade
-    db.session.delete(exam)
-    db.session.commit()
-    flash("تم حذف الامتحان.", "info")
+    exam = db.session.get(Exam, exam_id)
+    g = exam.grade if exam else ""
+    if exam:
+        db.session.delete(exam)
+        db.session.commit()
+        flash("تم حذف الامتحان.", "info")
     return redirect(url_for("admin_dashboard", grade=g))
 
 
 @app.route("/admin/student/toggle/<int:student_id>", methods=["POST"])
 @admin_required
 def toggle_student(student_id):
-    student = User.query.get_or_404(student_id)
-    student.is_active = not student.is_active
-    db.session.commit()
-    flash(f"تم تحديث حالة الطالب {student.full_name}.", "success")
-    return redirect(url_for("admin_dashboard", grade=student.grade))
+    student = db.session.get(User, student_id)
+    if student:
+        student.is_active = not student.is_active
+        db.session.commit()
+        flash(f"تم تحديث حالة الطالب {student.full_name}.", "success")
+        return redirect(url_for("admin_dashboard", grade=student.grade))
+    return redirect(url_for("admin_dashboard"))
 
 
 @app.route("/admin/codes/generate", methods=["POST"])
@@ -830,7 +882,10 @@ def generate_codes():
 
 @app.errorhandler(500)
 def internal_error(error):
-    db.session.rollback()
+    try:
+        db.session.rollback()
+    except Exception:
+        pass
     return render_template(
         "index.html",
         weeks=[],
@@ -852,28 +907,26 @@ def init_db():
     if _db_initialized:
         return
     try:
-        with app.app_context():
-            db.create_all()
-            settings = PlatformSettings.query.first()
-            if not settings:
-                db.session.add(PlatformSettings())
-                db.session.commit()
-            if not User.query.filter_by(role="admin").first():
-                admin = User(
-                    username="Mr_Ahmed_Gamal_Math2026",
-                    full_name="مستر / أحمد جمال",
-                    phone="01099887766",
-                    password_hash=generate_password_hash("M@th#Gamal$2026!Zizo"),
-                    role="admin",
-                    is_active=True
-                )
-                db.session.add(admin)
-                db.session.commit()
+        db.create_all()
+        settings = PlatformSettings.query.first()
+        if not settings:
+            db.session.add(PlatformSettings())
+            db.session.commit()
+        if not User.query.filter_by(role="admin").first():
+            admin = User(
+                username="Mr_Ahmed_Gamal_Math2026",
+                full_name="مستر / أحمد جمال",
+                phone="01099887766",
+                password_hash=generate_password_hash("M@th#Gamal$2026!Zizo"),
+                role="admin",
+                is_active=True
+            )
+            db.session.add(admin)
+            db.session.commit()
         _db_initialized = True
     except Exception as exc:
         try:
-            with app.app_context():
-                db.session.rollback()
+            db.session.rollback()
         except Exception:
             pass
         print("Database initialization error:", exc)
@@ -885,5 +938,6 @@ def ensure_db_ready():
 
 
 if __name__ == "__main__":
-    init_db()
+    with app.app_context():
+        init_db()
     app.run(debug=True, port=5000)
