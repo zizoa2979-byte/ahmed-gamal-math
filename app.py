@@ -23,12 +23,13 @@ if raw_db_url.startswith("postgres://"):
 
 app.config["SQLALCHEMY_DATABASE_URI"] = raw_db_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-    "pool_pre_ping": True,
-    "pool_recycle": 300,
-    "pool_size": 5,
-    "max_overflow": 5,
-}
+if not raw_db_url.startswith("sqlite"):
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+        "pool_pre_ping": True,
+        "pool_recycle": 300,
+        "pool_size": 5,
+        "max_overflow": 5,
+    }
 app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024
 
 if os.environ.get("VERCEL"):
@@ -830,7 +831,15 @@ def generate_codes():
 @app.errorhandler(500)
 def internal_error(error):
     db.session.rollback()
-    return render_template("index.html", weeks=[], selected_grade="", grade_counts={g: 0 for g in GRADES}, students_count=0, videos_count=0, exams_count=0), 500
+    return render_template(
+        "index.html",
+        weeks=[],
+        selected_grade="",
+        grade_counts={g: 0 for g in GRADES},
+        students_count=0,
+        videos_count=0,
+        exams_count=0
+    ), 500
 
 
 # ===================== تهيئة قاعدة البيانات وحساب المدرس لـ Vercel و Supabase =====================
@@ -843,25 +852,30 @@ def init_db():
     if _db_initialized:
         return
     try:
-        db.create_all()
-        settings = PlatformSettings.query.first()
-        if not settings:
-            db.session.add(PlatformSettings())
-            db.session.commit()
-        if not User.query.filter_by(role="admin").first():
-            admin = User(
-                username="Mr_Ahmed_Gamal_Math2026",
-                full_name="مستر / أحمد جمال",
-                phone="01099887766",
-                password_hash=generate_password_hash("M@th#Gamal$2026!Zizo"),
-                role="admin",
-                is_active=True
-            )
-            db.session.add(admin)
-            db.session.commit()
+        with app.app_context():
+            db.create_all()
+            settings = PlatformSettings.query.first()
+            if not settings:
+                db.session.add(PlatformSettings())
+                db.session.commit()
+            if not User.query.filter_by(role="admin").first():
+                admin = User(
+                    username="Mr_Ahmed_Gamal_Math2026",
+                    full_name="مستر / أحمد جمال",
+                    phone="01099887766",
+                    password_hash=generate_password_hash("M@th#Gamal$2026!Zizo"),
+                    role="admin",
+                    is_active=True
+                )
+                db.session.add(admin)
+                db.session.commit()
         _db_initialized = True
     except Exception as exc:
-        db.session.rollback()
+        try:
+            with app.app_context():
+                db.session.rollback()
+        except Exception:
+            pass
         print("Database initialization error:", exc)
 
 
