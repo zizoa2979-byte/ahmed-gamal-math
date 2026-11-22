@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ settings.platform_name }}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-main: #090f1d;
+      --bg-card: #111b30;
+      --accent: #f59e0b;
+      --accent-blue: #38bdf8;
+    }
+    * { font-family: 'Cairo', sans-serif; }
+    body {
+      background-color: var(--bg-main);
+      color: #f8fafc;
+      overflow-x: hidden;
+    }
+    .navbar {
+      background: rgba(9, 15, 29, 0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .hero {
+      padding: 65px 0 45px;
+      background:
+        radial-gradient(circle at 85% 20%, rgba(245, 158, 11, 0.16), transparent 42%),
+        radial-gradient(circle at 15% 75%, rgba(56, 189, 248, 0.14), transparent 45%);
+    }
+    .hero-title {
+      font-size: clamp(2rem, 4.4vw, 3.2rem);
+      font-weight: 900;
+      line-height: 1.25;
+    }
+    .hero-title span { color: var(--accent); }
+    .card-box {
+      background-color: var(--bg-card);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 22px;
+      padding: 22px;
+      height: 100%;
+      transition: 0.25s ease;
+    }
+    .card-box:hover {
+      transform: translateY(-4px);
+      border-color: var(--accent);
+    }
+    .grade-pill {
+      display: block;
+      text-decoration: none;
+      color: #f8fafc;
+      background: var(--bg-card);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 18px;
+      padding: 18px;
+      transition: 0.2s ease;
+    }
+    .grade-pill:hover, .grade-pill.active {
+      border-color: var(--accent);
+      background: rgba(245, 158, 11, 0.09);
+      color: #fff;
+    }
+    .btn-gold {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      color: #090f1d;
+      font-weight: 800;
+      border: none;
+      border-radius: 12px;
+      padding: 10px 20px;
+    }
+    .btn-gold:hover { color: #090f1d; opacity: 0.92; }
+    .btn-outline-light-custom {
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      color: #fff;
+      font-weight: 700;
+      border-radius: 12px;
+      padding: 10px 20px;
+    }
+    .btn-outline-light-custom:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+    .teacher-img {
+      width: 150px;
+      height: 150px;
+      border-radius: 22px;
+      object-fit: cover;
+      border: 3px solid var(--accent);
+    }
+    footer {
+      background: #050912;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 28px 0;
+      margin-top: 70px;
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar navbar-expand-lg navbar-dark sticky-top py-3">
+    <div class="container">
+      <a class="navbar-brand fw-bold d-flex align-items-center gap-2" href="{{ url_for('index') }}">
+        <span class="badge bg-warning text-dark fs-6 px-2 py-1 rounded-3">∑</span>
+        <span>{{ settings.platform_name }}</span>
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navMenu">
+        <ul class="navbar-nav me-auto gap-lg-3 my-2 my-lg-0">
+          <li class="nav-item"><a class="nav-link" href="#grades">الصفوف الدراسية</a></li>
+          <li class="nav-item"><a class="nav-link" href="#lessons">الدروس والأسابيع</a></li>
+          <li class="nav-item"><a class="nav-link" href="#smart-system">تقييم المستوى</a></li>
+        </ul>
+        <div class="d-flex flex-wrap gap-2">
+          {% if current_user %}
+            {% if current_user.role == 'admin' %}
+              <a href="{{ url_for('admin_dashboard') }}" class="btn btn-gold btn-sm">لوحة المدرس</a>
+            {% else %}
+              <a href="{{ url_for('student_dashboard') }}" class="btn btn-gold btn-sm">حسابي ومستواي</a>
+            {% endif %}
+            <a href="{{ url_for('logout') }}" class="btn btn-outline-light-custom btn-sm">خروج</a>
+          {% else %}
+            <a href="{{ url_for('auth') }}" class="btn btn-outline-light-custom btn-sm">تسجيل الدخول</a>
+            <a href="{{ url_for('auth') }}?mode=register" class="btn btn-gold btn-sm">حساب جديد</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="container mt-3">
+        {% for category, msg in messages %}
+          <div class="alert alert-{{ category }} alert-dismissible fade show rounded-3" role="alert">
+            {{ msg }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <section class="hero">
+    <div class="container">
+      <div class="row align-items-center g-5">
+        <div class="col-lg-7">
+          <span class="badge rounded-pill px-3 py-2 mb-3" style="background: rgba(245, 158, 11, 0.16); color: #fbbf24; font-weight: 800;">
+            إعدادي وثانوي • شرح + امتحانات + متابعة مستوى تلقائية
+          </span>
+          <h1 class="hero-title mb-3">
+            الرياضيات أسهل وأوضح مع <span>{{ settings.teacher_name }}</span>
+          </h1>
+          <p class="text-secondary fs-5 mb-4" style="line-height: 1.85;">
+            {{ settings.teacher_bio }}
+          </p>
+          <div class="d-flex flex-wrap gap-3 mb-4">
+            <a href="{{ url_for('auth') }}?mode=register" class="btn btn-gold">
+              <i class="fa-solid fa-user-plus me-1"></i> إنشاء حساب طالب
+            </a>
+            <a href="#grades" class="btn btn-outline-light-custom">
+              <i class="fa-solid fa-layer-group me-1"></i> اختر صفك الدراسي
+            </a>
+            {% if settings.whatsapp_number %}
+              <a href="https://wa.me/{{ clean_wa_phone(settings.whatsapp_number) }}" target="_blank" class="btn btn-success fw-bold rounded-3 px-3 py-2">
+                <i class="fa-brands fa-whatsapp me-1"></i> تواصل واتساب
+              </a>
+            {% endif %}
+          </div>
+
+          <div class="row g-3">
+            <div class="col-4">
+              <div class="card-box text-center py-3">
+                <div class="fw-bold fs-4 text-warning">{{ students_count }}</div>
+                <small class="text-secondary">طالب مسجل</small>
+              </div>
+            </div>
+            <div class="col-4">
+              <div class="card-box text-center py-3">
+                <div class="fw-bold fs-4 text-info">{{ videos_count }}</div>
+                <small class="text-secondary">فيديو شرح</small>
+              </div>
+            </div>
+            <div class="col-4">
+              <div class="card-box text-center py-3">
+                <div class="fw-bold fs-4 text-success">{{ exams_count }}</div>
+                <small class="text-secondary">امتحان تفاعلي</small>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-5">
+          <div class="card-box text-center" style="border-color: rgba(245, 158, 11, 0.3);">
+            {% if settings.teacher_image %}
+              <img src="{{ settings.teacher_image }}" alt="{{ settings.teacher_name }}" class="teacher-img mb-3" />
+            {% else %}
+              <div class="teacher-img mx-auto mb-3 d-flex align-items-center justify-content-center bg-dark">
+                <i class="fa-solid fa-calculator fa-3x text-warning"></i>
+              </div>
+            {% endif %}
+            <h3 class="fw-bold mb-1">{{ settings.teacher_name }}</h3>
+            <p class="text-warning fw-bold small mb-3">مدرس الرياضيات للمرحلتين الإعدادية والثانوية</p>
+            <p class="text-secondary small mb-0" style="line-height: 1.8;">
+              المنصة بتتابع مشاهدة الفيديوهات، وحل الامتحانات ودرجاتك، وتحدد مستواك تلقائياً وتعرضه ليك وللمدرس.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="grades" class="py-4">
+    <div class="container">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+        <div>
+          <h2 class="fw-bold mb-1">الصفوف الدراسية</h2>
+          <p class="text-secondary mb-0">اضغط على الصف لعرض دروسه وعدد طلابه</p>
+        </div>
+        {% if selected_grade %}
+          <a href="{{ url_for('index') }}#grades" class="btn btn-outline-light-custom btn-sm">عرض كل الصفوف</a>
+        {% endif %}
+      </div>
+
+      <div class="row g-3">
+        {% for g in grades %}
+          <div class="col-md-6 col-lg-4">
+            <a href="{{ url_for('index', grade=g) }}#lessons" class="grade-pill {% if selected_grade == g %}active{% endif %}">
+              <div class="d-flex justify-content-between align-items-center">
+                <span class="fw-bold">{{ g }}</span>
+                <span class="badge bg-warning text-dark">{{ grade_counts.get(g, 0) }} طالب</span>
+              </div>
+            </a>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <section id="lessons" class="py-5">
+    <div class="container">
+      <h2 class="fw-bold mb-1">
+        {% if selected_grade %}دروس وأسابيع {{ selected_grade }}{% else %}أحدث الدروس والأسابيع{% endif %}
+      </h2>
+      <p class="text-secondary mb-4">محتوى منظم يشمل الفيديوهات والملفات والامتحانات</p>
+
+      {% if weeks %}
+        <div class="row g-4">
+          {% for w in weeks %}
+            <div class="col-md-6 col-lg-4">
+              <div class="card-box d-flex flex-column justify-content-between">
+                <div>
+                  {% if w.cover_image %}
+                    <img src="{{ w.cover_image }}" alt="{{ w.title }}" class="w-100 rounded-3 mb-3" style="height: 160px; object-fit: cover;" />
+                  {% else %}
+                    <div class="w-100 rounded-3 mb-3 d-flex align-items-center justify-content-center bg-dark" style="height: 160px;">
+                      <i class="fa-solid fa-play-circle fa-3x text-warning"></i>
+                    </div>
+                  {% endif %}
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="badge bg-info text-dark">{{ w.grade }}</span>
+                    {% if w.is_free %}
+                      <span class="badge bg-success">مجاني</span>
+                    {% else %}
+                      <span class="badge bg-warning text-dark">{{ w.price }} ج.م</span>
+                    {% endif %}
+                  </div>
+                  <h5 class="fw-bold">{{ w.title }}</h5>
+                  <p class="text-secondary small">{{ w.description or "شرح تفصيلي وتدريبات على الدرس." }}</p>
+                </div>
+                <a href="{{ url_for('student_dashboard', week_id=w.id) }}" class="btn btn-gold w-100 mt-3">
+                  فتح الدرس
+                </a>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="card-box text-center py-5">
+          <p class="text-secondary mb-0">لا توجد دروس منشورة في هذا القسم حالياً.</p>
+        </div>
+      {% endif %}
+    </div>
+  </section>
+
+  <section id="smart-system" class="py-4">
+    <div class="container">
+      <div class="row g-4">
+        <div class="col-md-4">
+          <div class="card-box">
+            <i class="fa-solid fa-circle-play fa-2x text-warning mb-3"></i>
+            <h5 class="fw-bold">متابعة مشاهدة الفيديوهات</h5>
+            <p class="text-secondary small mb-0">المنصة بتسجل الفيديوهات اللي شفتها وبتحسب نسبة التزامك بالشرح.</p>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card-box">
+            <i class="fa-solid fa-file-pen fa-2x text-info mb-3"></i>
+            <h5 class="fw-bold">الامتحانات وقائمة الدرجات</h5>
+            <p class="text-secondary small mb-0">حل امتحاناتك وتابع قائمة درجاتك ونسبتك في كل امتحان بوضوح.</p>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card-box">
+            <i class="fa-solid fa-award fa-2x text-success mb-3"></i>
+            <h5 class="fw-bold">مستواك يظهر ليك وللمدرس</h5>
+            <p class="text-secondary small mb-0">تحديد تلقائي لمستواك بناءً على الفيديوهات والامتحانات والدرجات.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
+      <div>
+        <div class="fw-bold">{{ settings.platform_name }} — {{ settings.teacher_name }}</div>
+        <small class="text-secondary">© 2026 جميع الحقوق محفوظة</small>
+      </div>
+      <div class="text-warning fw-bold">
+        تطوير المهندس عبدالعزيز أمير
+      </div>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
