@@ -558,8 +558,10 @@ def auth():
 @app.route("/logout")
 def logout():
     session.clear()
+    resp = redirect(url_for("index"))
+    resp.delete_cookie(app.session_cookie_name)
     flash("تم تسجيل الخروج بنجاح.", "info")
-    return redirect(url_for("index"))
+    return resp
 
 
 @app.route("/student")

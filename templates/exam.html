@@ -14,44 +14,32 @@
       min-height: 100vh;
       display: flex;
       flex-direction: column;
-      padding-bottom: 40px;
     }
     .exam-card {
       background: #0e223d;
       border: 1px solid rgba(255, 255, 255, 0.09);
       border-radius: 18px;
       padding: 22px;
-      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
     }
-    .q-box {
+    .question-box {
       background: #09182c;
       border: 1px solid rgba(255, 255, 255, 0.08);
       border-radius: 14px;
-      padding: 16px;
+      padding: 18px;
     }
     .option-label {
       display: flex;
       align-items: center;
-      background: #0e223d;
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      border-radius: 10px;
+      gap: 10px;
       padding: 10px 14px;
+      border-radius: 10px;
+      background: #071324;
+      border: 1px solid rgba(255, 255, 255, 0.12);
       cursor: pointer;
-      margin-bottom: 8px;
-      transition: border-color 0.2s ease, background-color 0.2s ease;
     }
-    .option-label:hover,
-    .option-label:has(input:checked) {
+    .option-label:hover {
       border-color: #1677ff;
-      background: #132d50;
-    }
-    .timer-box {
-      background: #09182c;
-      border: 1px solid rgba(22, 119, 255, 0.35);
-      border-radius: 12px;
-      padding: 8px 14px;
-      min-width: 110px;
-      text-align: center;
     }
     .dev-credit-muted {
       color: #9fb3c8;
@@ -69,12 +57,15 @@
 <body>
   <nav class="navbar navbar-dark bg-dark border-bottom border-secondary border-opacity-25 px-3 mb-4">
     <div class="container">
-      <span class="navbar-brand fw-bold text-info mb-0">
+      <a class="navbar-brand fw-bold text-info" href="{{ url_for('student_dashboard') }}">
         <i class="bi bi-journal-check me-1"></i> {{ exam.title }}
-      </span>
-      <a href="{{ url_for('student_dashboard') }}" class="btn btn-sm btn-outline-light">
-        <i class="bi bi-arrow-right me-1"></i> رجوع لصفحتي
       </a>
+      <div class="d-flex align-items-center gap-2">
+        <span id="examTimerBadge" class="badge bg-info text-dark fs-6 px-3 py-2" data-minutes="{{ exam.duration_minutes or 20 }}">
+          <i class="bi bi-clock me-1"></i> <span id="timerText">{{ exam.duration_minutes or 20 }}:00</span>
+        </span>
+        <a href="{{ url_for('student_dashboard') }}" class="btn btn-sm btn-outline-light">العودة للوحة الطالب</a>
+      </div>
     </div>
   </nav>
 
@@ -89,66 +80,51 @@
       {% endif %}
     {% endwith %}
 
-    <div id="unansweredAlert" class="alert alert-warning rounded-3 d-none">
-      يرجى اختيار إجابة واحدة لكل سؤال قبل التسليم.
-    </div>
-
     <div class="exam-card mb-4">
-      <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 pb-3 mb-4 border-bottom border-secondary border-opacity-25">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
         <div>
-          <span class="badge bg-info text-dark mb-1">{{ exam.grade }}</span>
-          <h1 class="h4 fw-bold mb-1">{{ exam.title }}</h1>
-          <div class="small text-secondary">
-            عدد الأسئلة: {{ exam.questions|length }} • المدة: {{ exam.duration_minutes or 20 }} دقيقة
-          </div>
+          <span class="badge bg-primary mb-1">{{ exam.grade }}</span>
+          <h1 class="h4 fw-bold mb-0">{{ exam.title }}</h1>
         </div>
-
-        <div class="timer-box" id="timerBox" data-duration="{{ exam.duration_minutes or 20 }}">
-          <div class="small text-secondary">الوقت المتبقي</div>
-          <div class="fs-5 fw-bold text-info" id="timerDisplay">20:00</div>
-        </div>
+        <div class="small text-secondary">الطالب: <strong class="text-white">{{ user.full_name }}</strong></div>
       </div>
 
       {% if exam.questions %}
         <form id="examForm" method="POST" action="{{ url_for('take_exam', exam_id=exam.id) }}" class="d-grid gap-3">
           {% for q in exam.questions %}
-            <div class="q-box question-item" data-qid="{{ q.id }}">
-              <div class="fw-bold mb-3">{{ loop.index }}. {{ q.question_text }}</div>
-
-              <label class="option-label">
-                <input type="radio" name="q_{{ q.id }}" value="A" class="form-check-input ms-2 me-0" />
-                <span>أ) {{ q.option_a }}</span>
-              </label>
-
-              <label class="option-label">
-                <input type="radio" name="q_{{ q.id }}" value="B" class="form-check-input ms-2 me-0" />
-                <span>ب) {{ q.option_b }}</span>
-              </label>
-
-              <label class="option-label">
-                <input type="radio" name="q_{{ q.id }}" value="C" class="form-check-input ms-2 me-0" />
-                <span>ج) {{ q.option_c }}</span>
-              </label>
-
-              <label class="option-label mb-0">
-                <input type="radio" name="q_{{ q.id }}" value="D" class="form-check-input ms-2 me-0" />
-                <span>د) {{ q.option_d }}</span>
-              </label>
+            <div class="question-box">
+              <div class="fw-bold mb-3">السؤال {{ loop.index }}: {{ q.question_text }}</div>
+              <div class="d-grid gap-2">
+                <label class="option-label">
+                  <input type="radio" name="q_{{ q.id }}" value="A" class="form-check-input mt-0" required />
+                  <span><strong>A:</strong> {{ q.option_a }}</span>
+                </label>
+                <label class="option-label">
+                  <input type="radio" name="q_{{ q.id }}" value="B" class="form-check-input mt-0" />
+                  <span><strong>B:</strong> {{ q.option_b }}</span>
+                </label>
+                <label class="option-label">
+                  <input type="radio" name="q_{{ q.id }}" value="C" class="form-check-input mt-0" />
+                  <span><strong>C:</strong> {{ q.option_c }}</span>
+                </label>
+                <label class="option-label">
+                  <input type="radio" name="q_{{ q.id }}" value="D" class="form-check-input mt-0" />
+                  <span><strong>D:</strong> {{ q.option_d }}</span>
+                </label>
+              </div>
             </div>
           {% endfor %}
 
-          <button type="submit" id="submitExamBtn" class="btn btn-success btn-lg fw-bold rounded-3 mt-2">
-            <i class="bi bi-check2-circle me-1"></i> تسليم الإجابات وعرض النتيجة
+          <button type="submit" class="btn btn-success btn-lg fw-bold rounded-3 mt-2">
+            <i class="bi bi-send-check me-1"></i> تسليم الاختبار وحساب النتيجة
           </button>
         </form>
       {% else %}
-        <div class="alert alert-info mb-0">
-          لم يتم إضافة أسئلة لهذا الاختبار بعد.
-        </div>
+        <div class="alert alert-warning mb-0">لا توجد أسئلة مضافة في هذا الاختبار حالياً.</div>
       {% endif %}
     </div>
 
-    <div class="text-center mt-5">
+    <div class="text-center mt-5 mb-4">
       <div class="mb-1" style="color:#9fb3c8;font-size:0.8rem;">جميع الحقوق محفوظة © 2026</div>
       <div class="dev-credit-muted">
         <i class="bi bi-code-slash"></i>
@@ -157,89 +133,37 @@
     </div>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
     (function () {
-      const formEl = document.getElementById("examForm");
-      const timerBox = document.getElementById("timerBox");
-      const timerEl = document.getElementById("timerDisplay");
-      const alertEl = document.getElementById("unansweredAlert");
-      const submitBtn = document.getElementById("submitExamBtn");
+      const badge = document.getElementById("examTimerBadge");
+      const timerText = document.getElementById("timerText");
+      const examForm = document.getElementById("examForm");
 
-      if (!formEl) return;
+      if (badge && timerText) {
+        const mins = parseInt(badge.dataset.minutes || "20", 10);
+        let remainingSeconds = (Number.isNaN(mins) || mins <= 0 ? 20 : mins) * 60;
 
-      let isSubmitting = false;
-      const rawDuration = timerBox ? parseInt(timerBox.dataset.duration || "20", 10) : 20;
-      const durationMinutes = Number.isNaN(rawDuration) ? 20 : Math.max(1, rawDuration);
-      let totalSeconds = durationMinutes * 60;
+        function renderClock() {
+          const m = Math.floor(remainingSeconds / 60);
+          const s = remainingSeconds % 60;
+          timerText.textContent = String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+        }
 
-      function formatTime(sec) {
-        const safeSec = Math.max(0, sec);
-        const mins = Math.floor(safeSec / 60);
-        const remSecs = safeSec % 60;
-        return String(mins).padStart(2, "0") + ":" + String(remSecs).padStart(2, "0");
-      }
-
-      if (timerEl) {
-        timerEl.textContent = formatTime(totalSeconds);
-      }
-
-      function allQuestionsAnswered() {
-        const questionBoxes = formEl.querySelectorAll(".question-item");
-        for (const box of questionBoxes) {
-          const checked = box.querySelector('input[type="radio"]:checked');
-          if (!checked) {
-            return false;
+        renderClock();
+        const intervalId = setInterval(function () {
+          remainingSeconds -= 1;
+          if (remainingSeconds <= 0) {
+            clearInterval(intervalId);
+            timerText.textContent = "00:00";
+            if (examForm) {
+              examForm.submit();
+            }
+            return;
           }
-        }
-        return true;
+          renderClock();
+        }, 1000);
       }
-
-      function submitFormOnce(forceSubmit) {
-        if (isSubmitting) return;
-        if (!forceSubmit && !allQuestionsAnswered()) {
-          if (alertEl) {
-            alertEl.classList.remove("d-none");
-            alertEl.scrollIntoView({ behavior: "smooth", block: "center" });
-          }
-          return;
-        }
-        isSubmitting = true;
-        if (submitBtn) {
-          submitBtn.disabled = true;
-        }
-        formEl.submit();
-      }
-
-      formEl.addEventListener("change", function () {
-        if (alertEl && allQuestionsAnswered()) {
-          alertEl.classList.add("d-none");
-        }
-      });
-
-      formEl.addEventListener("submit", function (e) {
-        if (isSubmitting) return;
-        e.preventDefault();
-        submitFormOnce(false);
-      });
-
-      const countdown = setInterval(function () {
-        if (isSubmitting) {
-          clearInterval(countdown);
-          return;
-        }
-        totalSeconds -= 1;
-        if (timerEl) {
-          timerEl.textContent = formatTime(totalSeconds);
-          if (totalSeconds <= 60) {
-            timerEl.classList.remove("text-info");
-            timerEl.classList.add("text-danger");
-          }
-        }
-        if (totalSeconds <= 0) {
-          clearInterval(countdown);
-          submitFormOnce(true);
-        }
-      }, 1000);
 
       setTimeout(function () {
         document.querySelectorAll("#flashContainer .alert").forEach(function (el) {
