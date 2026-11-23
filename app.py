@@ -503,12 +503,17 @@ def auth():
                 db.session.commit()
                 session["user_id"] = user.id
                 session["session_token"] = token
-                flash(f"أهلاً بك يا {user.full_name}!", "success")
                 if user.role == "admin":
+                    flash(f"مرحباً بك يا {user.full_name} — تم الدخول إلى لوحة الإدارة.", "success")
                     return redirect(url_for("admin_dashboard"))
+                needs_onboarding = not all([user.full_name, user.phone, user.parent_phone, user.governorate, user.grade])
+                if needs_onboarding:
+                    flash(f"مرحباً بك يا {user.full_name} — يرجى إكمال بيانات التسجيل (Onboarding).", "info")
+                    return redirect(url_for("student_dashboard", onboarding="1"))
+                flash(f"مرحباً بك يا {user.full_name} — تم تسجيل الدخول بنجاح.", "success")
                 return redirect(url_for("student_dashboard"))
             else:
-                flash("بيانات الدخول غير صحيحة.", "danger")
+                flash("بيانات الدخول غير صحيحة، تأكد من رقم الهاتف/اسم المستخدم وكلمة المرور.", "danger")
                 return render_template("auth.html", mode="login")
 
         elif action == "register":
@@ -549,8 +554,8 @@ def auth():
 
             session["user_id"] = new_user.id
             session["session_token"] = token
-            flash("سوف يتم مراجعة حساباتكم ولن يظهر المحتوى إلا بعد قبول وموافقة الإدارة على الحساب.", "info")
-            return redirect(url_for("student_dashboard"))
+            flash("تم إنشاء الحساب بنجاح — سوف يتم مراجعة حساباتكم ولن يظهر المحتوى إلا بعد قبول وموافقة الإدارة على الحساب.", "info")
+            return redirect(url_for("student_dashboard", onboarding="1"))
 
     return render_template("auth.html", mode=mode)
 
@@ -564,6 +569,35 @@ def logout():
     return resp
 
 
+@app.route("/student/onboarding", methods=["POST"])
+@login_required
+def complete_onboarding():
+    user = db.session.get(User, session["user_id"])
+    if not user:
+        return redirect(url_for("auth"))
+
+    full_name = (request.form.get("full_name") or user.full_name or "").strip()
+    parent_phone = (request.form.get("parent_phone") or user.parent_phone or "").strip()
+    governorate = (request.form.get("governorate") or user.governorate or "").strip()
+    grade = (request.form.get("grade") or user.grade or "").strip()
+
+    if not all([full_name, parent_phone, governorate, grade]):
+        flash("يرجى استكمال جميع بيانات الـ Onboarding (الاسم، رقم ولي الأمر، المحافظة، الصف الدراسي).", "danger")
+        return redirect(url_for("student_dashboard", onboarding="1"))
+
+    if user.phone and parent_phone == user.phone:
+        flash("رقم هاتف الطالب ورقم هاتف ولي الأمر لا يجوز أن يكونا متطابقين.", "warning")
+        return redirect(url_for("student_dashboard", onboarding="1"))
+
+    user.full_name = full_name
+    user.parent_phone = parent_phone
+    user.governorate = governorate
+    user.grade = grade
+    db.session.commit()
+    flash("تم حفظ بيانات الـ Onboarding بنجاح.", "success")
+    return redirect(url_for("student_dashboard"))
+
+
 @app.route("/student")
 @login_required
 def student_dashboard():
@@ -571,11 +605,21 @@ def student_dashboard():
     if user.role == "admin":
         return redirect(url_for("admin_dashboard"))
 
+    force_onboarding = request.args.get("onboarding") == "1"
+    missing_profile = not all([user.full_name, user.phone, user.parent_phone, user.governorate, user.grade])
+    show_onboarding = bool(force_onboarding or missing_profile)
+
     if not user.is_active:
         announcements = Announcement.query.filter(
             (Announcement.grade == "") | (Announcement.grade == None) | (Announcement.grade == user.grade)
         ).order_by(Announcement.created_at.desc()).limit(10).all()
-        return render_template("student.html", user=user, pending_approval=True, announcements=announcements)
+        return render_template(
+            "student.html",
+            user=user,
+            pending_approval=True,
+            show_onboarding=show_onboarding,
+            announcements=announcements
+        )
 
     tab = request.args.get("tab", "overview")
     weeks = Week.query.filter_by(grade=user.grade, is_published=True).order_by(Week.order_num.asc()).all()
@@ -634,6 +678,7 @@ def student_dashboard():
         "student.html",
         user=user,
         pending_approval=False,
+        show_onboarding=show_onboarding,
         tab=tab,
         weeks=weeks,
         subscribed_weeks=subscribed_weeks,
