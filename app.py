@@ -16,6 +16,11 @@ from werkzeug.utils import secure_filename
 app = Flask(__name__)
 app.secret_key = (os.environ.get("SECRET_KEY") or "ahmed_gamal_math_platform_2026_zizo").strip()
 
+DEFAULT_TEACHER_NAME = "مستر / أحمد جمال"
+DEFAULT_PLATFORM_NAME = "الرياضة أسهل وأوضح مع مستر أحمد جمال"
+DEFAULT_TEACHER_BIO = "الرياضة أسهل وأوضح مع مستر أحمد جمال — شرح مبسط ومنهجي، تدريب مكثف على أفكار الامتحانات، وتقييم مستمر للمستوى."
+DEFAULT_WHATSAPP = "01070626007"
+
 
 def normalize_db_url(raw_url: str) -> str:
     url = (raw_url or "").strip()
@@ -86,13 +91,10 @@ CONTENT_SECTIONS = [
 
 class PlatformSettings(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    platform_name = db.Column(db.String(150), default="الرياضة أسهل وأوضح مع مستر أحمد جمال")
-    teacher_name = db.Column(db.String(150), default="مستر / أحمد جمال")
-    teacher_bio = db.Column(
-        db.Text,
-        default="الرياضة أسهل وأوضح مع مستر أحمد جمال — شرح مبسط ومنهجي، تدريب مكثف على أفكار الامتحانات، وتقييم مستمر للمستوى."
-    )
-    whatsapp_number = db.Column(db.String(30), default="01070626007")
+    platform_name = db.Column(db.String(150), default=DEFAULT_PLATFORM_NAME)
+    teacher_name = db.Column(db.String(150), default=DEFAULT_TEACHER_NAME)
+    teacher_bio = db.Column(db.Text, default=DEFAULT_TEACHER_BIO)
+    whatsapp_number = db.Column(db.String(30), default=DEFAULT_WHATSAPP)
     teacher_image = db.Column(db.String(300), default="")
     facebook_url = db.Column(db.String(300), default="")
     instagram_url = db.Column(db.String(300), default="")
@@ -223,6 +225,24 @@ class Announcement(db.Model):
 
 # ===================== دوال مساعدة وقفل المحتوى وتحديد المستوى =====================
 
+def _sanitize_settings_obj(settings):
+    if not settings:
+        settings = PlatformSettings()
+    if not (settings.teacher_name or "").strip() or (settings.teacher_name or "").strip().lower() == "none":
+        settings.teacher_name = DEFAULT_TEACHER_NAME
+    if not (settings.platform_name or "").strip() or (settings.platform_name or "").strip().lower() == "none":
+        settings.platform_name = DEFAULT_PLATFORM_NAME
+    if not (settings.teacher_bio or "").strip() or (settings.teacher_bio or "").strip().lower() == "none":
+        settings.teacher_bio = DEFAULT_TEACHER_BIO
+    if not (settings.whatsapp_number or "").strip() or (settings.whatsapp_number or "").strip().lower() == "none":
+        settings.whatsapp_number = DEFAULT_WHATSAPP
+    if (settings.teacher_image or "").strip().lower() == "none":
+        settings.teacher_image = ""
+    if settings.pass_percentage_required is None:
+        settings.pass_percentage_required = 50.0
+    return settings
+
+
 def get_settings():
     try:
         settings = PlatformSettings.query.first()
@@ -230,13 +250,13 @@ def get_settings():
             settings = PlatformSettings()
             db.session.add(settings)
             db.session.commit()
-        return settings
+        return _sanitize_settings_obj(settings)
     except Exception:
         try:
             db.session.rollback()
         except Exception:
             pass
-        return PlatformSettings()
+        return _sanitize_settings_obj(PlatformSettings())
 
 
 def save_uploaded_file(file_obj, target_folder, url_prefix):
@@ -373,10 +393,14 @@ def admin_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if "user_id" not in session:
-            flash("سجل دخولك بحساب الأدمن أولاً.", "warning")
+            flash("سجل دخولك بحساب الإدارة أولاً.", "warning")
             return redirect(url_for("auth"))
         user = db.session.get(User, session["user_id"])
-        if not user or user.role != "admin":
+        if not user or user.session_token != session.get("session_token"):
+            session.clear()
+            flash("يرجى تسجيل الدخول مرة أخرى.", "warning")
+            return redirect(url_for("auth"))
+        if user.role != "admin":
             flash("هذا القسم مخصص للإدارة فقط.", "danger")
             return redirect(url_for("index"))
         return f(*args, **kwargs)
@@ -674,45 +698,63 @@ def take_exam(exam_id):
 def admin_dashboard():
     selected_grade = request.args.get("grade", "").strip()
 
-    grade_summary = []
-    for g in GRADES:
-        g_students = User.query.filter_by(role="student", grade=g).all()
-        g_weeks_count = Week.query.filter_by(grade=g).count()
-        g_exams_count = Exam.query.filter_by(grade=g).count()
-        avg_lvl = round(sum(evaluate_student_level(s)["overall"] for s in g_students) / len(g_students), 1) if g_students else 0.0
-        grade_summary.append({
-            "grade": g,
-            "students_count": len(g_students),
-            "weeks_count": g_weeks_count,
-            "exams_count": g_exams_count,
-            "avg_level": avg_lvl
-        })
+    try:
+        grade_summary = []
+        for g in GRADES:
+            g_students = User.query.filter_by(role="student", grade=g).all()
+            g_weeks_count = Week.query.filter_by(grade=g).count()
+            g_exams_count = Exam.query.filter_by(grade=g).count()
+            avg_lvl = round(sum(evaluate_student_level(s)["overall"] for s in g_students) / len(g_students), 1) if g_students else 0.0
+            grade_summary.append({
+                "grade": g,
+                "students_count": len(g_students),
+                "weeks_count": g_weeks_count,
+                "exams_count": g_exams_count,
+                "avg_level": avg_lvl
+            })
 
-    students_query = User.query.filter_by(role="student")
-    weeks_query = Week.query
-    exams_query = Exam.query
+        students_query = User.query.filter_by(role="student")
+        weeks_query = Week.query
+        exams_query = Exam.query
 
-    if selected_grade:
-        students_query = students_query.filter_by(grade=selected_grade)
-        weeks_query = weeks_query.filter_by(grade=selected_grade)
-        exams_query = exams_query.filter_by(grade=selected_grade)
+        if selected_grade:
+            students_query = students_query.filter_by(grade=selected_grade)
+            weeks_query = weeks_query.filter_by(grade=selected_grade)
+            exams_query = exams_query.filter_by(grade=selected_grade)
 
-    students_raw = students_query.order_by(User.created_at.desc()).all()
-    students_data = [{"user": s, "level": evaluate_student_level(s)} for s in students_raw]
+        students_raw = students_query.order_by(User.created_at.desc()).all()
+        students_data = [{"user": s, "level": evaluate_student_level(s)} for s in students_raw]
 
-    weeks = weeks_query.order_by(Week.grade.asc(), Week.order_num.asc()).all()
-    all_weeks = Week.query.order_by(Week.grade.asc(), Week.order_num.asc()).all()
-    exams = exams_query.order_by(Exam.created_at.desc()).all()
-    all_exams = Exam.query.order_by(Exam.created_at.desc()).all()
-    exams_map = {e.id: e.title for e in all_exams}
-    codes = AccessCode.query.order_by(AccessCode.created_at.desc()).limit(100).all()
-    centers = CenterBranch.query.order_by(CenterBranch.created_at.desc()).all()
-    announcements = Announcement.query.order_by(Announcement.created_at.desc()).limit(30).all()
+        weeks = weeks_query.order_by(Week.order_num.asc()).all()
+        all_weeks = Week.query.order_by(Week.order_num.asc()).all()
+        exams = exams_query.order_by(Exam.created_at.desc()).all()
+        all_exams = Exam.query.order_by(Exam.created_at.desc()).all()
+        exams_map = {e.id: e.title for e in all_exams}
+        codes = AccessCode.query.order_by(AccessCode.created_at.desc()).limit(100).all()
+        centers = CenterBranch.query.order_by(CenterBranch.created_at.desc()).all()
+        announcements = Announcement.query.order_by(Announcement.created_at.desc()).limit(30).all()
 
-    results_query = ExamResult.query.join(User)
-    if selected_grade:
-        results_query = results_query.filter(User.grade == selected_grade)
-    exam_results = results_query.order_by(ExamResult.submitted_at.desc()).all()
+        results_query = ExamResult.query.join(User)
+        if selected_grade:
+            results_query = results_query.filter(User.grade == selected_grade)
+        exam_results = results_query.order_by(ExamResult.submitted_at.desc()).all()
+    except Exception as exc:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        flash(f"حدث تنبيه أثناء تحميل بعض بيانات الإدارة: {exc}", "warning")
+        grade_summary = []
+        students_data = []
+        weeks = []
+        all_weeks = []
+        exams = []
+        all_exams = []
+        exams_map = {}
+        codes = []
+        centers = []
+        announcements = []
+        exam_results = []
 
     return render_template(
         "admin.html",
@@ -735,10 +777,10 @@ def admin_dashboard():
 @admin_required
 def update_settings():
     settings = get_settings()
-    settings.platform_name = request.form.get("platform_name", settings.platform_name)
-    settings.teacher_name = request.form.get("teacher_name", settings.teacher_name)
-    settings.teacher_bio = request.form.get("teacher_bio", settings.teacher_bio)
-    settings.whatsapp_number = request.form.get("whatsapp_number", settings.whatsapp_number)
+    settings.platform_name = (request.form.get("platform_name") or DEFAULT_PLATFORM_NAME).strip()
+    settings.teacher_name = (request.form.get("teacher_name") or DEFAULT_TEACHER_NAME).strip()
+    settings.teacher_bio = (request.form.get("teacher_bio") or DEFAULT_TEACHER_BIO).strip()
+    settings.whatsapp_number = (request.form.get("whatsapp_number") or DEFAULT_WHATSAPP).strip()
     settings.facebook_url = request.form.get("facebook_url", settings.facebook_url or "").strip()
     settings.instagram_url = request.form.get("instagram_url", settings.instagram_url or "").strip()
     settings.tiktok_url = request.form.get("tiktok_url", settings.tiktok_url or "").strip()
@@ -1050,7 +1092,7 @@ def internal_error(error):
     return render_template("index.html"), 500
 
 
-# ===================== تهيئة قاعدة البيانات وحساب الأدمن =====================
+# ===================== تهيئة قاعدة البيانات وحساب الإدارة =====================
 
 _db_initialized = False
 
@@ -1063,19 +1105,22 @@ def init_db():
         db.create_all()
         settings = PlatformSettings.query.first()
         if not settings:
-            db.session.add(PlatformSettings())
-            db.session.commit()
+            settings = PlatformSettings()
+            db.session.add(settings)
+        else:
+            _sanitize_settings_obj(settings)
+
         if not User.query.filter_by(role="admin").first():
             admin = User(
                 username="Mr_Ahmed_Gamal_Math2026",
-                full_name="مستر / أحمد جمال",
+                full_name=DEFAULT_TEACHER_NAME,
                 phone="01099887766",
                 password_hash=generate_password_hash("M@th#Gamal$2026!Zizo"),
                 role="admin",
                 is_active=True
             )
             db.session.add(admin)
-            db.session.commit()
+        db.session.commit()
         _db_initialized = True
     except Exception as exc:
         try:
