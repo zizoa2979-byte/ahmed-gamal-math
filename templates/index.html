@@ -81,10 +81,6 @@
       border-color: var(--accent);
       color: #ffffff;
     }
-    .table-dark {
-      --bs-table-bg: #09182c;
-      --bs-table-color: #ffffff;
-    }
     .dev-credit-muted {
       color: #9fb3c8;
       font-size: 0.82rem;
@@ -155,7 +151,6 @@
       {% endif %}
     {% endwith %}
 
-    <!-- بانر المنصة والتعريف بالمدرس -->
     <section class="hero-banner mb-4">
       <div class="row align-items-center g-4">
         <div class="col-lg-8">
@@ -224,7 +219,6 @@
       </div>
     </section>
 
-    <!-- بطاقات الصفوف الدراسية -->
     <section class="section-card mb-4">
       <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
         <h2 class="h4 fw-bold mb-0"><i class="bi bi-collection-play-fill text-info me-1"></i> الصفوف الدراسية المتاحة</h2>
@@ -259,7 +253,6 @@
       </div>
     </section>
 
-    <!-- المراكز والإعلانات -->
     <div class="row g-4 mb-4">
       <div class="col-lg-6">
         <div class="section-card h-100">
@@ -302,88 +295,6 @@
         </div>
       </div>
     </div>
-
-    <!-- قسم الكول سنتر وحسابات الطلاب حسب الصف الدراسي -->
-    {% if current_user and current_user.role == 'admin' %}
-      <section class="section-card mb-4 border-info border-opacity-50">
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-          <h2 class="h5 fw-bold text-info mb-0"><i class="bi bi-headset me-1"></i> متابعة الكول سنتر وحسابات الطلاب حسب الصف الدراسي</h2>
-          <a href="{{ url_for('admin_dashboard') }}" class="btn btn-sm btn-info text-dark fw-bold">فتح لوحة الإدارة الكاملة</a>
-        </div>
-
-        {% if recent_students %}
-          <div class="mb-4">
-            <h3 class="h6 fw-bold text-light mb-2">أحدث الحسابات المقدمة (بيانات التقديم الكاملة)</h3>
-            <div class="row g-2">
-              {% for st in recent_students %}
-                <div class="col-md-6">
-                  <div class="p-3 rounded-3 bg-dark border border-secondary border-opacity-25 small">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                      <span class="fw-bold text-white">{{ st.full_name }}</span>
-                      {% if st.is_active %}
-                        <span class="badge bg-success">مفعل</span>
-                      {% else %}
-                        <span class="badge bg-warning text-dark">قيد المراجعة</span>
-                      {% endif %}
-                    </div>
-                    <div><strong>الصف:</strong> {{ st.grade or '-' }}</div>
-                    <div><strong>هاتف الطالب:</strong> {{ st.phone }}</div>
-                    <div><strong>هاتف ولي الأمر:</strong> {{ st.parent_phone or '-' }}</div>
-                    <div><strong>المحافظة:</strong> {{ st.governorate or '-' }}</div>
-                  </div>
-                </div>
-              {% endfor %}
-            </div>
-          </div>
-        {% endif %}
-
-        {% if students_by_grade %}
-          <div class="table-responsive">
-            <table class="table table-dark table-bordered align-middle small mb-0">
-              <thead>
-                <tr>
-                  <th>الصف الدراسي</th>
-                  <th>الطلاب ومستوياتهم</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for g in grades %}
-                  {% set g_list = students_by_grade.get(g, []) %}
-                  <tr>
-                    <td class="fw-bold text-info">{{ g }} ({{ g_list|length }})</td>
-                    <td>
-                      {% if g_list %}
-                        <div class="d-grid gap-2">
-                          {% for item in g_list %}
-                            {% set st = item.user %}
-                            {% set lvl = item.level %}
-                            <div class="p-2 rounded-2 bg-dark border border-secondary border-opacity-25 d-flex justify-content-between align-items-center flex-wrap gap-2">
-                              <div>
-                                <strong>{{ st.full_name }}</strong> • هاتف: {{ st.phone }} • ولي الأمر: {{ st.parent_phone or '-' }} • المحافظة: {{ st.governorate or '-' }}
-                              </div>
-                              <div>
-                                <span class="badge {{ lvl.badge_class }}">{{ lvl.label }} ({{ lvl.overall }}%)</span>
-                                {% if st.is_active %}
-                                  <span class="badge bg-success">مفعل</span>
-                                {% else %}
-                                  <span class="badge bg-warning text-dark">قيد المراجعة</span>
-                                {% endif %}
-                              </div>
-                            </div>
-                          {% endfor %}
-                        </div>
-                      {% else %}
-                        <span class="text-secondary">لا يوجد طلاب في هذا الصف.</span>
-                      {% endif %}
-                    </td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        {% endif %}
-      </section>
-    {% endif %}
 
     <div class="text-center mt-5 mb-4">
       <div class="mb-1" style="color:#9fb3c8;font-size:0.8rem;">جميع الحقوق محفوظة © 2026</div>
