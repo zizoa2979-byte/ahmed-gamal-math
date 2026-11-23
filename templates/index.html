@@ -8,78 +8,133 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
   <style>
     :root {
-      --bg-main: #071324;
-      --bg-card: #0e223d;
-      --bg-soft: #132f52;
-      --accent: #1677ff;
-      --accent-2: #00b4d8;
-      --border-soft: rgba(255, 255, 255, 0.09);
+      --bg-canvas: #06111f;
+      --bg-surface: #0c1f38;
+      --bg-elevated: #122c4f;
+      --brand-primary: #0ea5e9;
+      --brand-secondary: #10b981;
+      --brand-accent: #6366f1;
+      --line-subtle: rgba(148, 163, 184, 0.14);
     }
     body {
-      background-color: var(--bg-main);
-      color: #ffffff;
+      background-color: var(--bg-canvas);
+      background-image:
+        linear-gradient(rgba(14, 165, 233, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(14, 165, 233, 0.04) 1px, transparent 1px);
+      background-size: 28px 28px;
+      color: #f8fafc;
       font-family: system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
     }
-    .navbar {
-      background-color: rgba(9, 22, 42, 0.96) !important;
-      backdrop-filter: blur(10px);
-      border-bottom: 1px solid var(--border-soft);
+    .math-topbar {
+      background: linear-gradient(90deg, #075985 0%, #0284c7 50%, #0369a1 100%);
+      border-radius: 999px;
+      padding: 10px 18px;
+      margin: 14px auto 22px;
+      box-shadow: 0 12px 28px rgba(2, 132, 199, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.16);
     }
-    .hero-banner {
-      background: radial-gradient(circle at top right, rgba(22, 119, 255, 0.25), transparent 55%),
-                  linear-gradient(135deg, #0d2340 0%, #09182c 100%);
-      border: 1px solid var(--border-soft);
-      border-radius: 24px;
-      padding: 36px 26px;
-      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+    .auth-popover-card {
+      background: linear-gradient(160deg, #0d2746 0%, #08182c 100%);
+      border: 1px solid rgba(14, 165, 233, 0.35);
+      border-radius: 20px;
+      padding: 16px;
+      box-shadow: 0 18px 36px rgba(0, 0, 0, 0.45);
     }
-    .section-card {
-      background-color: var(--bg-card);
-      border: 1px solid var(--border-soft);
-      border-radius: 18px;
+    .math-hero {
+      position: relative;
+      overflow: hidden;
+      background: radial-gradient(circle at 85% 20%, rgba(16, 185, 129, 0.16), transparent 45%),
+                  radial-gradient(circle at 15% 80%, rgba(14, 165, 233, 0.22), transparent 50%),
+                  linear-gradient(135deg, #0d2542 0%, #071526 100%);
+      border: 1px solid var(--line-subtle);
+      border-radius: 26px;
+      padding: 34px 26px;
+      box-shadow: 0 20px 44px rgba(0, 0, 0, 0.38);
+    }
+    .math-watermark {
+      position: absolute;
+      font-weight: 800;
+      color: rgba(125, 211, 252, 0.06);
+      user-select: none;
+      pointer-events: none;
+      line-height: 1;
+    }
+    .math-card {
+      background-color: var(--bg-surface);
+      border: 1px solid var(--line-subtle);
+      border-radius: 20px;
       padding: 22px;
-      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
     }
-    .grade-box {
-      background-color: var(--bg-soft);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 16px;
+    .grade-tile {
+      background: linear-gradient(180deg, #112a4a 0%, #0b1c33 100%);
+      border: 1px solid rgba(125, 211, 252, 0.14);
+      border-radius: 18px;
       padding: 20px;
       height: 100%;
       transition: transform 0.2s ease, border-color 0.2s ease;
     }
-    .grade-box:hover {
+    .grade-tile:hover {
       transform: translateY(-3px);
-      border-color: rgba(0, 180, 216, 0.45);
+      border-color: rgba(16, 185, 129, 0.5);
     }
-    .teacher-avatar {
-      width: 170px;
-      height: 170px;
+    .btn-math-start {
+      background: linear-gradient(90deg, #059669 0%, #10b981 100%);
+      border: none;
+      color: #ffffff;
+      font-weight: 700;
+    }
+    .btn-math-start:hover {
+      background: linear-gradient(90deg, #047857 0%, #059669 100%);
+      color: #ffffff;
+    }
+    .teacher-ring {
+      width: 164px;
+      height: 164px;
       object-fit: cover;
       border-radius: 50%;
-      border: 3px solid var(--accent-2);
-      box-shadow: 0 10px 25px rgba(0, 180, 216, 0.2);
+      border: 3px solid #10b981;
+      box-shadow: 0 10px 24px rgba(16, 185, 129, 0.22);
     }
-    .social-pill {
+    .social-chip {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 7px 14px;
+      padding: 6px 13px;
       border-radius: 999px;
       background: rgba(255, 255, 255, 0.05);
       border: 1px solid rgba(255, 255, 255, 0.12);
       color: #e2e8f0;
       text-decoration: none;
-      font-size: 0.85rem;
-      transition: background-color 0.2s ease, border-color 0.2s ease;
+      font-size: 0.84rem;
     }
-    .social-pill:hover {
-      background: rgba(22, 119, 255, 0.22);
-      border-color: var(--accent);
+    .social-chip:hover {
+      background: rgba(14, 165, 233, 0.2);
       color: #ffffff;
+    }
+    .floating-support-btn {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      z-index: 1040;
+      background: linear-gradient(90deg, #0284c7 0%, #0ea5e9 100%);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      border-radius: 999px;
+      padding: 10px 18px;
+      font-weight: 700;
+      text-decoration: none;
+      box-shadow: 0 12px 28px rgba(2, 132, 199, 0.4);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .floating-support-btn:hover {
+      color: #ffffff;
+      transform: translateY(-2px);
     }
     .dev-credit-muted {
       color: #9fb3c8;
@@ -95,50 +150,64 @@
   </style>
 </head>
 <body>
-  <nav class="navbar navbar-expand-lg navbar-dark sticky-top mb-4">
-    <div class="container">
-      <a class="navbar-brand fw-bold text-info d-flex align-items-center gap-2" href="{{ url_for('index') }}">
-        <i class="bi bi-calculator-fill"></i>
+  <div class="container">
+    <!-- شريط علوي مستدير بهوية الرياضيات -->
+    <header class="math-topbar d-flex align-items-center justify-content-between gap-2">
+      <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-sm btn-light bg-opacity-10 text-white border-0 rounded-circle"
+                type="button" data-bs-toggle="collapse" data-bs-target="#quickPanelsDrawer"
+                aria-expanded="false" aria-controls="quickPanelsDrawer" title="القوائم واللوحات">
+          <i class="bi bi-list fs-5"></i>
+        </button>
+        <button class="btn btn-sm btn-light bg-opacity-10 text-white border-0 rounded-circle"
+                type="button" data-bs-toggle="collapse" data-bs-target="#accountEntryBox"
+                aria-expanded="false" aria-controls="accountEntryBox" title="حساب جديد وتسجيل الدخول">
+          <i class="bi bi-person-plus-fill fs-6"></i>
+        </button>
+      </div>
+
+      <a href="{{ url_for('index') }}" class="text-white text-decoration-none fw-bold d-flex align-items-center gap-2">
+        <span class="badge bg-dark bg-opacity-40 text-info border border-info border-opacity-25 rounded-pill px-2 py-1">
+          π • ∑ • √x
+        </span>
         <span>{{ settings.teacher_name if settings.teacher_name and settings.teacher_name != 'None' else 'مستر / أحمد جمال' }}</span>
       </a>
 
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-
-      <div class="collapse navbar-collapse" id="navbarContent">
-        <ul class="navbar-nav me-auto mb-2 mb-lg-0 gap-2 mt-2 mt-lg-0">
-          <li class="nav-item">
-            <a class="btn btn-sm btn-outline-light" href="{{ url_for('index') }}">الرئيسية</a>
-          </li>
-          <li class="nav-item">
-            <a class="btn btn-sm btn-outline-info" href="{{ url_for('auth', mode='login') }}">تسجيل الدخول</a>
-          </li>
-          <li class="nav-item">
-            <a class="btn btn-sm btn-primary fw-bold" href="{{ url_for('auth', mode='register') }}">إنشاء حساب جديد</a>
-          </li>
-          <li class="nav-item">
-            <a class="btn btn-sm btn-outline-success" href="{{ url_for('student_dashboard') }}">لوحة الطالب</a>
-          </li>
-          <li class="nav-item">
-            <a class="btn btn-sm btn-outline-secondary text-light" href="{{ url_for('admin_dashboard') }}">لوحة الإدارة</a>
-          </li>
-          {% if current_user %}
-            <li class="nav-item">
-              <a class="btn btn-sm btn-outline-danger" href="{{ url_for('logout') }}">خروج</a>
-            </li>
-          {% endif %}
-        </ul>
-
-        {% if settings.whatsapp_number %}
-          <a href="https://wa.me/{{ clean_wa_phone(settings.whatsapp_number) }}?text={{ quote('السلام عليكم، أستفسر بخصوص منصة الرياضيات مع ' ~ (settings.teacher_name if settings.teacher_name and settings.teacher_name != 'None' else 'مستر أحمد جمال')) }}"
-             target="_blank" class="btn btn-sm btn-success fw-bold mt-2 mt-lg-0">
-            <i class="bi bi-whatsapp me-1"></i> تواصل واتساب
-          </a>
+      <div class="d-flex align-items-center gap-2">
+        <a href="{{ url_for('auth', mode='login') }}" class="btn btn-sm btn-dark bg-opacity-50 text-white border-0 rounded-circle" title="دخول">
+          <i class="bi bi-box-arrow-in-right"></i>
+        </a>
+        {% if current_user %}
+          <a href="{{ url_for('logout') }}" class="btn btn-sm btn-danger rounded-pill px-2 py-1 small fw-bold">خروج</a>
         {% endif %}
       </div>
+    </header>
+
+    <!-- قائمة اللوحات السريعة عند الضغط على أيقونة القائمة -->
+    <div class="collapse mb-3" id="quickPanelsDrawer">
+      <div class="auth-popover-card d-flex flex-wrap gap-2 justify-content-center">
+        <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-light rounded-pill px-3">الرئيسية</a>
+        <a href="{{ url_for('auth', mode='register') }}" class="btn btn-sm btn-math-start rounded-pill px-3">حساب جديد</a>
+        <a href="{{ url_for('auth', mode='login') }}" class="btn btn-sm btn-info text-dark fw-bold rounded-pill px-3">تسجيل الدخول</a>
+        <a href="{{ url_for('student_dashboard') }}" class="btn btn-sm btn-outline-info rounded-pill px-3">لوحة الطالب</a>
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-sm btn-outline-secondary text-light rounded-pill px-3">لوحة الإدارة</a>
+      </div>
     </div>
-  </nav>
+
+    <!-- بطاقة الحساب الجديد وتسجيل الدخول -->
+    <div class="collapse mb-4" id="accountEntryBox">
+      <div class="auth-popover-card mx-auto" style="max-width: 520px;">
+        <div class="d-grid gap-2">
+          <a href="{{ url_for('auth', mode='register') }}" class="btn btn-primary fw-bold py-2 rounded-3">
+            <i class="bi bi-person-plus me-1"></i> حساب جديد
+          </a>
+          <a href="{{ url_for('auth', mode='login') }}" class="btn btn-outline-info fw-bold py-2 rounded-3">
+            <i class="bi bi-box-arrow-in-right me-1"></i> تسجيل الدخول
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <main class="container flex-grow-1">
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -151,53 +220,58 @@
       {% endif %}
     {% endwith %}
 
-    <section class="hero-banner mb-4">
-      <div class="row align-items-center g-4">
+    <!-- بانر المنصة بطابع رياضي وهندسي -->
+    <section class="math-hero mb-4">
+      <span class="math-watermark" style="top: -12px; left: 18px; font-size: 6rem;">∑</span>
+      <span class="math-watermark" style="bottom: -18px; right: 24px; font-size: 6.5rem;">π</span>
+      <span class="math-watermark" style="top: 35%; left: 42%; font-size: 4.5rem;">Δ</span>
+
+      <div class="row align-items-center g-4 position-relative">
         <div class="col-lg-8">
-          <span class="badge bg-info text-dark px-3 py-2 rounded-pill mb-3">
-            <i class="bi bi-stars me-1"></i> نظام متكامل للشرح والتدريب والاختبارات
+          <span class="badge bg-info bg-opacity-20 text-info border border-info border-opacity-35 px-3 py-2 rounded-pill mb-3">
+            <i class="bi bi-compass me-1"></i> جبر • هندسة • حساب مثلثات • تفاضل
           </span>
           <h1 class="display-6 fw-bold mb-3">
             {{ settings.platform_name if settings.platform_name and settings.platform_name != 'None' else 'الرياضة أسهل وأوضح مع مستر أحمد جمال' }}
           </h1>
           <p class="lead text-light opacity-75 mb-4">
-            {{ settings.teacher_bio if settings.teacher_bio and settings.teacher_bio != 'None' else 'شرح مبسط ومنهجي، تدريب مكثف على أفكار الامتحانات، وتقييم مستمر للمستوى.' }}
+            {{ settings.teacher_bio if settings.teacher_bio and settings.teacher_bio != 'None' else 'منصة متكاملة للرياضيات والهندسة والجبر وحساب المثلثات — شرح مبسط ومنهجي، تدريب مكثف على أفكار الامتحانات، ومتابعة مستمرة للمستوى.' }}
           </p>
 
           <div class="d-flex flex-wrap gap-2 mb-4">
-            <a href="{{ url_for('auth', mode='register') }}" class="btn btn-primary btn-lg fw-bold px-4 rounded-3">
-              <i class="bi bi-person-plus-fill me-1"></i> ابدأ حساب الطالب
+            <a href="{{ url_for('auth', mode='register') }}" class="btn btn-math-start btn-lg px-4 rounded-3">
+              <i class="bi bi-play-circle-fill me-1"></i> ابدأ رحلتك
             </a>
-            <a href="{{ url_for('auth', mode='login') }}" class="btn btn-outline-light btn-lg px-4 rounded-3">
-              <i class="bi bi-box-arrow-in-right me-1"></i> دخول الحساب
+            <a href="{{ url_for('auth', mode='login') }}" class="btn btn-outline-info btn-lg px-4 rounded-3">
+              <i class="bi bi-box-arrow-in-right me-1"></i> تسجيل الدخول
             </a>
-            <a href="{{ url_for('student_dashboard') }}" class="btn btn-outline-info btn-lg px-4 rounded-3">
-              <i class="bi bi-mortarboard-fill me-1"></i> لوحة الطالب
+            <a href="{{ url_for('student_dashboard') }}" class="btn btn-outline-light btn-lg px-4 rounded-3">
+              لوحة الطالب
             </a>
             <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-secondary text-light btn-lg px-4 rounded-3">
-              <i class="bi bi-shield-lock-fill me-1"></i> لوحة الإدارة
+              لوحة الإدارة
             </a>
           </div>
 
           <div class="d-flex flex-wrap gap-2">
             {% if settings.facebook_url %}
-              <a href="{{ settings.facebook_url }}" target="_blank" class="social-pill">
-                <i class="bi bi-facebook text-primary"></i> فيسبوك
+              <a href="{{ settings.facebook_url }}" target="_blank" class="social-chip">
+                <i class="bi bi-facebook text-info"></i> فيسبوك
               </a>
             {% endif %}
             {% if settings.instagram_url %}
-              <a href="{{ settings.instagram_url }}" target="_blank" class="social-pill">
-                <i class="bi bi-instagram text-danger"></i> إنستجرام
+              <a href="{{ settings.instagram_url }}" target="_blank" class="social-chip">
+                <i class="bi bi-instagram text-info"></i> إنستجرام
               </a>
             {% endif %}
             {% if settings.tiktok_url %}
-              <a href="{{ settings.tiktok_url }}" target="_blank" class="social-pill">
+              <a href="{{ settings.tiktok_url }}" target="_blank" class="social-chip">
                 <i class="bi bi-tiktok text-info"></i> تيك توك
               </a>
             {% endif %}
             {% if settings.youtube_url %}
-              <a href="{{ settings.youtube_url }}" target="_blank" class="social-pill">
-                <i class="bi bi-youtube text-danger"></i> يوتيوب
+              <a href="{{ settings.youtube_url }}" target="_blank" class="social-chip">
+                <i class="bi bi-youtube text-info"></i> يوتيوب
               </a>
             {% endif %}
           </div>
@@ -205,46 +279,47 @@
 
         <div class="col-lg-4 text-center">
           {% if settings.teacher_image %}
-            <img src="{{ settings.teacher_image }}" alt="{{ settings.teacher_name }}" class="teacher-avatar mb-3" />
+            <img src="{{ settings.teacher_image }}" alt="{{ settings.teacher_name }}" class="teacher-ring mb-3" />
           {% else %}
             <div class="p-4 rounded-4 bg-dark bg-opacity-50 border border-info border-opacity-25">
-              <i class="bi bi-person-workspace text-info" style="font-size: 3.5rem;"></i>
-              <h2 class="h5 fw-bold mt-3 mb-1">
+              <div class="fs-1 fw-bold text-info mb-2">f(x) = y</div>
+              <h2 class="h5 fw-bold mb-1">
                 {{ settings.teacher_name if settings.teacher_name and settings.teacher_name != 'None' else 'مستر / أحمد جمال' }}
               </h2>
-              <p class="small text-secondary mb-0">متابعة دقيقة لمستوى الطالب ودرجات الامتحانات</p>
+              <p class="small text-secondary mb-0">تبسيط القوانين والمسائل خطوة بخطوة مع تقييم مستمر للمستوى</p>
             </div>
           {% endif %}
         </div>
       </div>
     </section>
 
-    <section class="section-card mb-4">
+    <!-- الصفوف الدراسية -->
+    <section class="math-card mb-4">
       <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-        <h2 class="h4 fw-bold mb-0"><i class="bi bi-collection-play-fill text-info me-1"></i> الصفوف الدراسية المتاحة</h2>
-        <span class="badge bg-primary bg-opacity-25 text-info border border-info border-opacity-25">{{ grades|length }} صفوف دراسية</span>
+        <h2 class="h4 fw-bold mb-0"><i class="bi bi-grid-3x3-gap-fill text-info me-1"></i> الصفوف الدراسية</h2>
+        <span class="badge bg-info bg-opacity-15 text-info border border-info border-opacity-25">{{ grades|length }} صفوف دراسية</span>
       </div>
 
       <div class="row g-3">
         {% for g in grades %}
           <div class="col-md-6 col-lg-4">
-            <div class="grade-box d-flex flex-column justify-content-between">
+            <div class="grade-tile d-flex flex-column justify-content-between">
               <div>
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                  <span class="badge bg-dark text-info border border-info border-opacity-25">مرحلة دراسية</span>
-                  <i class="bi bi-journal-math text-info"></i>
+                  <span class="badge bg-dark text-info border border-info border-opacity-25">∫ رياضيات</span>
+                  <span class="text-secondary small fw-bold">0{{ loop.index }}</span>
                 </div>
                 <h3 class="h5 fw-bold text-white mb-2">{{ g }}</h3>
                 <p class="small text-light opacity-75 mb-3">
-                  محتوى شرح منظم، تدريبات تطبيقية، اختبارات إلكترونية، وتقارير مستوى ومتابعة لولي الأمر.
+                  محاضرات شرح منظمة، بنك مسائل وتدريبات، اختبارات إلكترونية، ومتابعة دورية لمستوى الطالب.
                 </p>
               </div>
               <div class="d-flex gap-2 pt-2 border-top border-light border-opacity-10">
-                <a href="{{ url_for('auth', mode='register') }}" class="btn btn-sm btn-primary fw-bold flex-fill">
-                  تسجيل طالب
+                <a href="{{ url_for('auth', mode='register') }}" class="btn btn-sm btn-math-start flex-fill rounded-3">
+                  ابدأ الآن
                 </a>
-                <a href="{{ url_for('student_dashboard') }}" class="btn btn-sm btn-outline-light flex-fill">
-                  دخول الطالب
+                <a href="{{ url_for('auth', mode='login') }}" class="btn btn-sm btn-outline-info flex-fill rounded-3">
+                  دخول
                 </a>
               </div>
             </div>
@@ -253,10 +328,11 @@
       </div>
     </section>
 
+    <!-- المراكز والتنبيهات -->
     <div class="row g-4 mb-4">
       <div class="col-lg-6">
-        <div class="section-card h-100">
-          <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-geo-alt-fill me-1"></i> المراكز والفروع</h2>
+        <div class="math-card h-100">
+          <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-geo-alt-fill me-1"></i> المراكز والمجموعات</h2>
           {% if centers %}
             <div class="d-grid gap-2">
               {% for c in centers %}
@@ -278,8 +354,8 @@
       </div>
 
       <div class="col-lg-6">
-        <div class="section-card h-100">
-          <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-megaphone-fill me-1"></i> أحدث التنبيهات والإعلانات</h2>
+        <div class="math-card h-100">
+          <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-megaphone-fill me-1"></i> الإعلانات والتنبيهات</h2>
           {% if announcements %}
             <div class="d-grid gap-2">
               {% for ann in announcements %}
@@ -296,7 +372,7 @@
       </div>
     </div>
 
-    <div class="text-center mt-5 mb-4">
+    <div class="text-center mt-5 mb-5">
       <div class="mb-1" style="color:#9fb3c8;font-size:0.8rem;">جميع الحقوق محفوظة © 2026</div>
       <div class="dev-credit-muted">
         <i class="bi bi-code-slash"></i>
@@ -304,6 +380,14 @@
       </div>
     </div>
   </main>
+
+  {% if settings.whatsapp_number %}
+    <a href="https://wa.me/{{ clean_wa_phone(settings.whatsapp_number) }}?text={{ quote('السلام عليكم، أستفسر بخصوص منصة الرياضيات مع ' ~ (settings.teacher_name if settings.teacher_name and settings.teacher_name != 'None' else 'مستر أحمد جمال')) }}"
+       target="_blank" class="floating-support-btn">
+      <i class="bi bi-chat-dots-fill"></i>
+      <span>تواصل مع الدعم</span>
+    </a>
+  {% endif %}
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>

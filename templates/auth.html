@@ -3,37 +3,106 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>تسجيل الدخول / إنشاء حساب - {{ settings.teacher_name if settings.teacher_name and settings.teacher_name != 'None' else 'مستر / أحمد جمال' }}</title>
+  <title>{{ 'إنشاء حساب جديد' if mode == 'register' else 'تسجيل الدخول' }} - {{ settings.teacher_name if settings.teacher_name and settings.teacher_name != 'None' else 'مستر / أحمد جمال' }}</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css" rel="stylesheet" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
   <style>
+    :root {
+      --bg-canvas: #06111f;
+      --bg-surface: #0c1f38;
+      --brand-primary: #0ea5e9;
+      --brand-secondary: #10b981;
+      --line-subtle: rgba(148, 163, 184, 0.14);
+    }
     body {
-      background-color: #071324;
-      color: #ffffff;
+      background-color: var(--bg-canvas);
+      background-image:
+        linear-gradient(rgba(14, 165, 233, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(14, 165, 233, 0.04) 1px, transparent 1px);
+      background-size: 28px 28px;
+      color: #f8fafc;
       font-family: system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
     }
-    .auth-card {
-      background: #0e223d;
-      border: 1px solid rgba(255, 255, 255, 0.09);
-      border-radius: 20px;
-      padding: 26px;
-      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
+    .auth-shell {
+      position: relative;
+      overflow: hidden;
+      background: radial-gradient(circle at top right, rgba(14, 165, 233, 0.16), transparent 52%),
+                  radial-gradient(circle at bottom left, rgba(16, 185, 129, 0.12), transparent 50%),
+                  linear-gradient(160deg, #0d2542 0%, #071526 100%);
+      border: 1px solid var(--line-subtle);
+      border-radius: 24px;
+      padding: 28px 22px;
+      max-width: 560px;
+      width: 100%;
+      box-shadow: 0 22px 46px rgba(0, 0, 0, 0.42);
+    }
+    .math-symbol-bg {
+      position: absolute;
+      font-weight: 800;
+      color: rgba(125, 211, 252, 0.06);
+      user-select: none;
+      pointer-events: none;
     }
     .form-control, .form-select {
-      background-color: #071324;
-      border-color: rgba(255, 255, 255, 0.16);
-      color: #ffffff;
-      border-radius: 10px;
-      padding: 10px 12px;
+      background-color: #06111f;
+      border-color: rgba(148, 163, 184, 0.22);
+      color: #f8fafc;
+      border-radius: 12px;
+      padding: 11px 14px;
     }
     .form-control:focus, .form-select:focus {
-      background-color: #071324;
+      background-color: #06111f;
+      color: #f8fafc;
+      border-color: var(--brand-primary);
+      box-shadow: 0 0 0 0.2rem rgba(14, 165, 233, 0.16);
+    }
+    .btn-math-action {
+      background: linear-gradient(90deg, #0284c7 0%, #0ea5e9 100%);
+      border: none;
       color: #ffffff;
-      border-color: #1677ff;
-      box-shadow: none;
+      font-weight: 700;
+      padding: 11px 16px;
+      border-radius: 12px;
+    }
+    .btn-math-action:hover {
+      background: linear-gradient(90deg, #0369a1 0%, #0284c7 100%);
+      color: #ffffff;
+    }
+    .btn-math-register {
+      background: linear-gradient(90deg, #059669 0%, #10b981 100%);
+      border: none;
+      color: #ffffff;
+      font-weight: 700;
+      padding: 11px 16px;
+      border-radius: 12px;
+    }
+    .btn-math-register:hover {
+      background: linear-gradient(90deg, #047857 0%, #059669 100%);
+      color: #ffffff;
+    }
+    .floating-support-btn {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      z-index: 1040;
+      background: linear-gradient(90deg, #0284c7 0%, #0ea5e9 100%);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      border-radius: 999px;
+      padding: 10px 18px;
+      font-weight: 700;
+      text-decoration: none;
+      box-shadow: 0 12px 28px rgba(2, 132, 199, 0.4);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .floating-support-btn:hover {
+      color: #ffffff;
+      transform: translateY(-2px);
     }
     .dev-credit-muted {
       color: #9fb3c8;
@@ -49,108 +118,130 @@
   </style>
 </head>
 <body>
-  <nav class="navbar navbar-dark bg-dark border-bottom border-secondary border-opacity-25 px-3 mb-4">
-    <div class="container">
-      <a class="navbar-brand fw-bold text-info" href="{{ url_for('index') }}">
-        <i class="bi bi-calculator me-1"></i>
-        {{ settings.teacher_name if settings.teacher_name and settings.teacher_name != 'None' else 'مستر / أحمد جمال' }}
-      </a>
-      <div class="d-flex gap-2">
-        <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-light">الرئيسية</a>
-        <a href="{{ url_for('student_dashboard') }}" class="btn btn-sm btn-outline-success">لوحة الطالب</a>
-        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-sm btn-outline-secondary text-light">لوحة الإدارة</a>
+  <main class="container py-4 flex-grow-1 d-flex flex-column align-items-center justify-content-center">
+    <div class="auth-shell">
+      <span class="math-symbol-bg" style="top: -10px; left: 14px; font-size: 4.5rem;">π</span>
+      <span class="math-symbol-bg" style="bottom: -14px; right: 16px; font-size: 4.8rem;">∑</span>
+
+      <div class="d-flex justify-content-between align-items-center mb-3 position-relative">
+        <span class="badge bg-info bg-opacity-15 text-info border border-info border-opacity-25 rounded-pill px-3 py-2">
+          ∫ {{ settings.teacher_name if settings.teacher_name and settings.teacher_name != 'None' else 'مستر / أحمد جمال' }}
+        </span>
+        <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-light rounded-pill px-3">
+          الرجوع للرئيسية <i class="bi bi-arrow-left ms-1"></i>
+        </a>
       </div>
-    </div>
-  </nav>
 
-  <main class="container flex-grow-1" style="max-width: 560px;">
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        <div id="flashContainer" class="mb-3">
-          {% for cat, msg in messages %}
-            <div class="alert alert-{{ cat }} rounded-3">{{ msg }}</div>
-          {% endfor %}
-        </div>
-      {% endif %}
-    {% endwith %}
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div id="flashContainer" class="mb-3 position-relative">
+            {% for cat, msg in messages %}
+              <div class="alert alert-{{ cat }} rounded-3 small">{{ msg }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
 
-    <div class="auth-card">
-      <div class="d-flex gap-2 mb-4">
+      <div class="d-flex gap-2 mb-4 position-relative">
         <a href="{{ url_for('auth', mode='login') }}"
-           class="btn flex-fill fw-bold rounded-3 {% if mode != 'register' %}btn-primary{% else %}btn-outline-light{% endif %}">
+           class="btn btn-sm flex-fill fw-bold rounded-3 py-2 {% if mode != 'register' %}btn-info text-dark{% else %}btn-outline-info{% endif %}">
           تسجيل الدخول
         </a>
         <a href="{{ url_for('auth', mode='register') }}"
-           class="btn flex-fill fw-bold rounded-3 {% if mode == 'register' %}btn-primary{% else %}btn-outline-light{% endif %}">
-          إنشاء حساب طالب
+           class="btn btn-sm flex-fill fw-bold rounded-3 py-2 {% if mode == 'register' %}btn-success text-white{% else %}btn-outline-success{% endif %}">
+          حساب جديد
         </a>
       </div>
 
       {% if mode == 'register' %}
-        <h1 class="h4 fw-bold mb-3">إنشاء حساب طالب جديد</h1>
-        <form id="registerForm" method="POST" action="{{ url_for('auth', mode='register') }}" class="d-grid gap-3">
+        <div class="text-center mb-4 position-relative">
+          <h1 class="h4 fw-bold mb-1">إنشاء حساب طالب جديد</h1>
+          <p class="small text-secondary mb-0">
+            سجّل بياناتك بدقة للمتابعة — أو <a href="{{ url_for('auth', mode='login') }}" class="text-info fw-bold text-decoration-none">لديك حساب بالفعل؟ سجل دخولك الآن!</a>
+          </p>
+        </div>
+
+        <form method="POST" action="{{ url_for('auth', mode='register') }}" class="d-grid gap-3 position-relative">
           <input type="hidden" name="action" value="register" />
 
           <div>
-            <label class="form-label">الاسم الثلاثي للطالب</label>
-            <input type="text" name="full_name" class="form-control" required />
+            <label class="form-label small fw-bold">الاسم الثلاثي للطالب</label>
+            <input type="text" name="full_name" class="form-control" placeholder="اكتب اسمك الثلاثي" required />
+          </div>
+
+          <div class="row g-2">
+            <div class="col-md-6">
+              <label class="form-label small fw-bold">رقم الهاتف</label>
+              <input type="text" name="phone" class="form-control" placeholder="01xxxxxxxxx" required />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-bold">رقم هاتف ولي الأمر</label>
+              <input type="text" name="parent_phone" class="form-control" placeholder="01xxxxxxxxx" required />
+            </div>
+          </div>
+
+          <div class="row g-2">
+            <div class="col-md-6">
+              <label class="form-label small fw-bold">المحافظة</label>
+              <input type="text" name="governorate" class="form-control" value="الدقهلية" placeholder="المحافظة" required />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-bold">الصف الدراسي</label>
+              <select name="grade" class="form-select" required>
+                <option value="">اختر الصف الدراسي</option>
+                {% for g in grades %}
+                  <option value="{{ g }}">{{ g }}</option>
+                {% endfor %}
+              </select>
+            </div>
           </div>
 
           <div>
-            <label class="form-label">رقم هاتف الطالب</label>
-            <input type="text" name="phone" id="studentPhone" class="form-control" required />
+            <label class="form-label small fw-bold">كلمة السر</label>
+            <div class="input-group">
+              <input type="password" id="regPasswordInput" name="password" class="form-control" placeholder="اختر كلمة سر قوية" required />
+              <button type="button" class="btn btn-outline-secondary" onclick="togglePassField('regPasswordInput', this)">
+                <i class="bi bi-eye"></i>
+              </button>
+            </div>
           </div>
 
-          <div>
-            <label class="form-label">رقم هاتف ولي الأمر</label>
-            <input type="text" name="parent_phone" id="parentPhone" class="form-control" required />
-          </div>
-
-          <div>
-            <label class="form-label">المحافظة</label>
-            <input type="text" name="governorate" class="form-control" value="الدقهلية" required />
-          </div>
-
-          <div>
-            <label class="form-label">الصف الدراسي</label>
-            <select name="grade" class="form-select" required>
-              <option value="">اختر الصف الدراسي</option>
-              {% for g in grades %}
-                <option value="{{ g }}">{{ g }}</option>
-              {% endfor %}
-            </select>
-          </div>
-
-          <div>
-            <label class="form-label">كلمة المرور</label>
-            <input type="password" name="password" class="form-control" required />
-          </div>
-
-          <div id="phoneMatchWarning" class="alert alert-warning py-2 small d-none mb-0">
-            رقم هاتف الطالب ورقم هاتف ولي الأمر لا يجوز أن يكونا متطابقين.
-          </div>
-
-          <button type="submit" class="btn btn-success btn-lg fw-bold rounded-3 mt-1">
-            إرسال طلب إنشاء الحساب
+          <button type="submit" class="btn btn-math-register w-100 mt-1">
+            إنشاء الحساب
           </button>
         </form>
       {% else %}
-        <h1 class="h4 fw-bold mb-3">تسجيل الدخول إلى المنصة</h1>
-        <form id="loginForm" method="POST" action="{{ url_for('auth', mode='login') }}" class="d-grid gap-3">
+        <div class="text-center mb-4 position-relative">
+          <h1 class="h4 fw-bold mb-1">أهلاً تاني! جاهز للمذاكرة؟</h1>
+          <p class="small text-secondary mb-2">
+            ادخل على حسابك بإدخال رقم الهاتف أو اسم المستخدم وكلمة المرور المسجل بهم من قبل.
+          </p>
+          <p class="small mb-0">
+            <span class="text-secondary">لا يوجد لديك حساب؟</span>
+            <a href="{{ url_for('auth', mode='register') }}" class="text-info fw-bold text-decoration-none">انشئ حسابك الآن !</a>
+          </p>
+        </div>
+
+        <form method="POST" action="{{ url_for('auth', mode='login') }}" class="d-grid gap-3 position-relative">
           <input type="hidden" name="action" value="login" />
 
           <div>
-            <label class="form-label">رقم الهاتف أو اسم المستخدم</label>
-            <input type="text" name="login_id" class="form-control" required />
+            <label class="form-label small fw-bold">رقم الهاتف أو اسم المستخدم</label>
+            <input type="text" name="login_id" class="form-control" placeholder="أدخل رقم الهاتف أو اسم المستخدم" required />
           </div>
 
           <div>
-            <label class="form-label">كلمة المرور</label>
-            <input type="password" name="password" class="form-control" required />
+            <label class="form-label small fw-bold">كلمة السر</label>
+            <div class="input-group">
+              <input type="password" id="loginPasswordInput" name="password" class="form-control" placeholder="أدخل كلمة السر" required />
+              <button type="button" class="btn btn-outline-secondary" onclick="togglePassField('loginPasswordInput', this)">
+                <i class="bi bi-eye"></i>
+              </button>
+            </div>
           </div>
 
-          <button type="submit" class="btn btn-primary btn-lg fw-bold rounded-3 mt-1">
-            دخول
+          <button type="submit" class="btn btn-math-action w-100 mt-1">
+            تسجيل الدخول
           </button>
         </form>
       {% endif %}
@@ -165,39 +256,36 @@
     </div>
   </main>
 
+  {% if settings.whatsapp_number %}
+    <a href="https://wa.me/{{ clean_wa_phone(settings.whatsapp_number) }}?text={{ quote('السلام عليكم، أستفسر بخصوص منصة الرياضيات مع ' ~ (settings.teacher_name if settings.teacher_name and settings.teacher_name != 'None' else 'مستر أحمد جمال')) }}"
+       target="_blank" class="floating-support-btn">
+      <i class="bi bi-chat-dots-fill"></i>
+      <span>تواصل مع الدعم</span>
+    </a>
+  {% endif %}
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    (function () {
-      const regForm = document.getElementById("registerForm");
-      const stPhone = document.getElementById("studentPhone");
-      const prPhone = document.getElementById("parentPhone");
-      const warnEl = document.getElementById("phoneMatchWarning");
-
-      if (regForm && stPhone && prPhone) {
-        function checkPhones() {
-          const same = stPhone.value.trim() !== "" && stPhone.value.trim() === prPhone.value.trim();
-          if (warnEl) {
-            warnEl.classList.toggle("d-none", !same);
-          }
-          return !same;
-        }
-        stPhone.addEventListener("input", checkPhones);
-        prPhone.addEventListener("input", checkPhones);
-        regForm.addEventListener("submit", function (e) {
-          if (!checkPhones()) {
-            e.preventDefault();
-          }
-        });
+    function togglePassField(inputId, btn) {
+      const inp = document.getElementById(inputId);
+      const icon = btn.querySelector("i");
+      if (!inp) return;
+      if (inp.type === "password") {
+        inp.type = "text";
+        if (icon) { icon.className = "bi bi-eye-slash"; }
+      } else {
+        inp.type = "password";
+        if (icon) { icon.className = "bi bi-eye"; }
       }
+    }
 
-      setTimeout(function () {
-        document.querySelectorAll("#flashContainer .alert").forEach(function (el) {
-          el.style.transition = "opacity 0.4s ease";
-          el.style.opacity = "0";
-          setTimeout(function () { el.remove(); }, 400);
-        });
-      }, 5000);
-    })();
+    setTimeout(function () {
+      document.querySelectorAll("#flashContainer .alert").forEach(function (el) {
+        el.style.transition = "opacity 0.4s ease";
+        el.style.opacity = "0";
+        setTimeout(function () { el.remove(); }, 400);
+      });
+    }, 5000);
   </script>
 </body>
 </html>

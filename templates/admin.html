@@ -7,42 +7,125 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css" rel="stylesheet" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
   <style>
+    :root {
+      --bg-canvas: #06111f;
+      --bg-surface: #0c1f38;
+      --bg-elevated: #122c4f;
+      --brand-primary: #0ea5e9;
+      --brand-secondary: #10b981;
+      --line-subtle: rgba(148, 163, 184, 0.14);
+    }
     body {
-      background-color: #071324;
-      color: #ffffff;
+      background-color: var(--bg-canvas);
+      background-image:
+        linear-gradient(rgba(14, 165, 233, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(14, 165, 233, 0.04) 1px, transparent 1px);
+      background-size: 28px 28px;
+      color: #f8fafc;
       font-family: system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
     }
-    .admin-card {
-      background: #0e223d;
-      border: 1px solid rgba(255, 255, 255, 0.09);
-      border-radius: 18px;
+    .admin-topbar {
+      background: linear-gradient(90deg, #075985 0%, #0284c7 55%, #059669 100%);
+      border-radius: 999px;
+      padding: 10px 18px;
+      margin: 14px auto 22px;
+      box-shadow: 0 12px 28px rgba(2, 132, 199, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+    }
+    .math-card {
+      background-color: var(--bg-surface);
+      border: 1px solid var(--line-subtle);
+      border-radius: 20px;
       padding: 20px;
-      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+      box-shadow: 0 12px 26px rgba(0, 0, 0, 0.24);
     }
     .sub-box {
-      background: #09182c;
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: #071526;
+      border: 1px solid var(--line-subtle);
       border-radius: 14px;
       padding: 14px;
     }
-    .form-control, .form-select {
-      background-color: #071324;
-      border-color: rgba(255, 255, 255, 0.16);
+    .grade-accordion-btn {
+      background: linear-gradient(90deg, #102846 0%, #0b1c33 100%);
+      color: #f8fafc;
+      border: 1px solid rgba(125, 211, 252, 0.18);
+      border-radius: 14px !important;
+      padding: 14px 18px;
+      font-weight: 700;
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      text-align: right;
+    }
+    .grade-accordion-btn:hover {
+      border-color: rgba(16, 185, 129, 0.45);
       color: #ffffff;
-      border-radius: 10px;
+    }
+    .form-control, .form-select {
+      background-color: #06111f;
+      border-color: rgba(148, 163, 184, 0.22);
+      color: #f8fafc;
+      border-radius: 11px;
     }
     .form-control:focus, .form-select:focus {
-      background-color: #071324;
-      color: #ffffff;
-      border-color: #1677ff;
+      background-color: #06111f;
+      color: #f8fafc;
+      border-color: var(--brand-primary);
       box-shadow: none;
     }
     .table-dark {
-      --bs-table-bg: #09182c;
-      --bs-table-color: #ffffff;
+      --bs-table-bg: #071526;
+      --bs-table-color: #f8fafc;
+    }
+    .login-confirm-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(3, 9, 18, 0.78);
+      backdrop-filter: blur(5px);
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .login-confirm-card {
+      background: #ffffff;
+      color: #0f172a;
+      border-radius: 24px;
+      padding: 28px 24px;
+      max-width: 390px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+    }
+    .check-circle-badge {
+      width: 78px;
+      height: 78px;
+      border-radius: 50%;
+      background: rgba(16, 185, 129, 0.14);
+      color: #10b981;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.5rem;
+      margin-bottom: 14px;
+    }
+    .btn-confirm-ok {
+      background: #7dd3fc;
+      color: #0f172a;
+      font-weight: 800;
+      border: none;
+      border-radius: 12px;
+      padding: 10px 26px;
+      box-shadow: 0 4px 0 #38bdf8;
+    }
+    .btn-confirm-ok:hover {
+      background: #38bdf8;
+      color: #0f172a;
     }
     .dev-credit-muted {
       color: #9fb3c8;
@@ -58,43 +141,227 @@
   </style>
 </head>
 <body>
-  <nav class="navbar navbar-expand-lg navbar-dark bg-dark border-bottom border-secondary border-opacity-25 px-3 mb-4">
-    <div class="container-fluid">
-      <a class="navbar-brand fw-bold text-info" href="{{ url_for('admin_dashboard') }}">
-        <i class="bi bi-shield-lock-fill me-1"></i> لوحة تحكم الإدارة
-      </a>
-
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#adminNav">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-
-      <div class="collapse navbar-collapse" id="adminNav">
-        <div class="navbar-nav me-auto d-flex flex-wrap gap-2 mt-2 mt-lg-0">
-          <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-light">الرئيسية</a>
-          <a href="{{ url_for('student_dashboard') }}" class="btn btn-sm btn-outline-success">لوحة الطالب</a>
-          <a href="{{ url_for('auth', mode='register') }}" class="btn btn-sm btn-outline-info">صفحة التسجيل</a>
-          <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline-danger">خروج</a>
+  {% if show_login_modal %}
+    <div id="loginSuccessModal" class="login-confirm-backdrop">
+      <div class="login-confirm-card">
+        <div class="check-circle-badge">
+          <i class="bi bi-check-lg"></i>
         </div>
+        <h2 class="h4 fw-bold mb-2">تم تسجيل الدخول بنجاح !</h2>
+        <p class="text-secondary small mb-4">اضغط حسناً للاستمرار</p>
+        <button type="button" class="btn btn-confirm-ok" onclick="closeLoginModal()">حسناً</button>
       </div>
     </div>
-  </nav>
+  {% endif %}
 
-  <main class="container-fluid px-3 px-md-4 flex-grow-1">
+  <div class="container">
+    <header class="admin-topbar d-flex align-items-center justify-content-between gap-2 flex-wrap">
+      <a href="{{ url_for('admin_dashboard') }}" class="text-white text-decoration-none fw-bold d-flex align-items-center gap-2">
+        <span class="badge bg-dark bg-opacity-40 text-info rounded-pill px-2 py-1">π • ∑ • Δ</span>
+        <span>لوحة الإدارة — {{ settings.teacher_name if settings.teacher_name and settings.teacher_name != 'None' else 'مستر / أحمد جمال' }}</span>
+      </a>
+
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <a href="{{ url_for('index') }}" class="btn btn-sm btn-dark bg-opacity-40 text-white border-0 rounded-pill px-3">الرئيسية</a>
+        <a href="{{ url_for('student_dashboard') }}" class="btn btn-sm btn-light text-dark fw-bold rounded-pill px-3">لوحة الطالب</a>
+        <a href="{{ url_for('auth', mode='register') }}" class="btn btn-sm btn-dark bg-opacity-40 text-white border-0 rounded-pill px-3">صفحة التسجيل</a>
+        <a href="{{ url_for('logout') }}" class="btn btn-sm btn-danger rounded-pill px-3">خروج</a>
+      </div>
+    </header>
+  </div>
+
+  <main class="container flex-grow-1">
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         <div id="flashContainer" class="mb-3">
           {% for cat, msg in messages %}
-            <div class="alert alert-{{ cat }} rounded-3">{{ msg }}</div>
+            <div class="alert alert-{{ cat }} rounded-3 shadow-sm">{{ msg }}</div>
           {% endfor %}
         </div>
       {% endif %}
     {% endwith %}
 
-    <!-- فلتر الصف الدراسي -->
-    <div class="admin-card mb-4">
+    <!-- تنبيه فوري في أعلى الصفحة بوجود طلاب جدد قيد المراجعة -->
+    {% if pending_students %}
+      <div class="alert alert-warning border-warning d-flex justify-content-between align-items-center flex-wrap gap-2 rounded-4 p-3 mb-4 shadow">
+        <div>
+          <i class="bi bi-bell-fill me-1"></i>
+          <strong>تنبيه فوري:</strong> يوجد <strong>{{ pending_students|length }}</strong> طالب جديد بانتظار المراجعة والقبول أو الإيقاف.
+        </div>
+        <a href="#pendingReviewSection" class="btn btn-sm btn-dark fw-bold rounded-pill px-3">
+          مراجعة الطلبات الجديدة الآن
+        </a>
+      </div>
+    {% endif %}
+
+    <!-- قسم مراجعة الطلبات الجديدة وقبولهم أو إيقافهم -->
+    <section class="math-card mb-4 border-warning border-opacity-50" id="pendingReviewSection">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+          <h2 class="h5 fw-bold text-warning mb-1">
+            <i class="bi bi-person-check-fill me-1"></i> مراجعة الطلاب الجدد (قيد المراجعة)
+          </h2>
+          <div class="small text-secondary">راجع بيانات الطالب وولي الأمر والمحافظة والصف ثم اضغط قبول وتفعيل أو إيقاف</div>
+        </div>
+        <span class="badge bg-warning text-dark fs-6">{{ pending_students|length }} طلب قيد المراجعة</span>
+      </div>
+
+      {% if pending_students %}
+        <div class="table-responsive">
+          <table class="table table-dark table-bordered table-hover align-middle small mb-0">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>اسم الطالب</th>
+                <th>الصف الدراسي</th>
+                <th>رقم الطالب</th>
+                <th>رقم ولي الأمر</th>
+                <th>المحافظة</th>
+                <th>حالة الحساب</th>
+                <th>قبول / إيقاف</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for st in pending_students %}
+                <tr>
+                  <td>{{ loop.index }}</td>
+                  <td class="fw-bold text-white">{{ st.full_name }}</td>
+                  <td><span class="badge bg-info text-dark">{{ st.grade or '-' }}</span></td>
+                  <td><a href="tel:{{ st.phone }}" class="text-info text-decoration-none fw-bold">{{ st.phone }}</a></td>
+                  <td>{{ st.parent_phone or '-' }}</td>
+                  <td>{{ st.governorate or '-' }}</td>
+                  <td><span class="badge bg-warning text-dark">قيد المراجعة</span></td>
+                  <td class="d-flex gap-2">
+                    <form method="POST" action="{{ url_for('toggle_student', student_id=st.id) }}">
+                      <button type="submit" class="btn btn-sm btn-success fw-bold">قبول وتفعيل</button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="text-secondary small">لا توجد طلبات حسابات جديدة قيد المراجعة حالياً.</div>
+      {% endif %}
+    </section>
+
+    <!-- قوائم الصفوف الدراسية القابلة للفتح والغلق (كل صف يتفتح لوحده ويعرض طلابه وبياناتهم ومستواهم وحالتهم) -->
+    <section class="math-card mb-4 border-info border-opacity-50" id="gradesAccordionSection">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+          <h2 class="h5 fw-bold text-info mb-1">
+            <i class="bi bi-diagram-3-fill me-1"></i> قوائم الصفوف الدراسية — بيانات الطلاب ومستواهم وحالتهم
+          </h2>
+          <div class="small text-secondary">اضغط على أي صف دراسي لفتح قائمته وعرض طلابه وبياناتهم ومستواهم (0% إذا لم يبدأ) وحالة الحساب</div>
+        </div>
+        <span class="badge bg-info text-dark fs-6">{{ students_data|length }} إجمالي الطلاب</span>
+      </div>
+
+      <div class="accordion d-grid gap-2" id="gradesAccordion">
+        {% for g in grades %}
+          {% set g_rows = students_by_grade.get(g, []) %}
+          {% set collapse_id = 'gradeCollapse_' ~ loop.index %}
+          {% set is_expanded = (selected_grade == g) %}
+          <div class="border-0">
+            <button class="grade-accordion-btn {% if not is_expanded %}collapsed{% endif %}"
+                    type="button"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#{{ collapse_id }}"
+                    aria-expanded="{{ 'true' if is_expanded else 'false' }}"
+                    aria-controls="{{ collapse_id }}">
+              <span class="d-flex align-items-center gap-2">
+                <i class="bi bi-folder2-open text-info"></i>
+                <span>{{ g }}</span>
+              </span>
+              <span class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary">{{ g_rows|length }} طالب</span>
+                <i class="bi bi-chevron-down"></i>
+              </span>
+            </button>
+
+            <div id="{{ collapse_id }}" class="collapse {% if is_expanded %}show{% endif %}" data-bs-parent="#gradesAccordion">
+              <div class="sub-box mt-2">
+                {% if g_rows %}
+                  <div class="table-responsive">
+                    <table class="table table-dark table-bordered table-hover align-middle small mb-0">
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>اسم الطالب</th>
+                          <th>رقم الطالب</th>
+                          <th>رقم ولي الأمر</th>
+                          <th>المحافظة</th>
+                          <th>المستوى (0% لو لم يبدأ)</th>
+                          <th>الفيديوهات والامتحانات</th>
+                          <th>حالة الحساب</th>
+                          <th>إجراء</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for row in g_rows %}
+                          {% set st = row.user %}
+                          {% set lvl = row.level %}
+                          {% set has_started = (lvl.watched_count > 0) or (lvl.solved_exams > 0) %}
+                          {% set shown_pct = lvl.overall if has_started else 0.0 %}
+                          <tr>
+                            <td>{{ loop.index }}</td>
+                            <td class="fw-bold text-white">{{ st.full_name }}</td>
+                            <td><a href="tel:{{ st.phone }}" class="text-info text-decoration-none fw-bold">{{ st.phone }}</a></td>
+                            <td>
+                              {% if st.parent_phone %}
+                                <a href="tel:{{ st.parent_phone }}" class="text-light text-decoration-none">{{ st.parent_phone }}</a>
+                              {% else %}
+                                -
+                              {% endif %}
+                            </td>
+                            <td>{{ st.governorate or '-' }}</td>
+                            <td>
+                              <div class="fw-bold text-info fs-6">{{ shown_pct }}%</div>
+                              {% if has_started %}
+                                <span class="badge {{ lvl.badge_class }}">{{ lvl.label }}</span>
+                              {% else %}
+                                <span class="badge bg-secondary">لم يبدأ بعد (0%)</span>
+                              {% endif %}
+                            </td>
+                            <td>
+                              <div>مشاهدة: <strong>{{ lvl.watched_count }}/{{ lvl.total_videos }}</strong></div>
+                              <div>الامتحانات: <strong>{{ lvl.solved_exams }}/{{ lvl.total_exams }}</strong> (متوسط {{ lvl.avg_score if has_started else 0.0 }}%)</div>
+                            </td>
+                            <td>
+                              {% if st.is_active %}
+                                <span class="badge bg-success">مفعل</span>
+                              {% else %}
+                                <span class="badge bg-warning text-dark">قيد المراجعة</span>
+                              {% endif %}
+                            </td>
+                            <td>
+                              <form method="POST" action="{{ url_for('toggle_student', student_id=st.id) }}">
+                                <button type="submit" class="btn btn-sm {% if st.is_active %}btn-outline-warning{% else %}btn-success fw-bold{% endif %}">
+                                  {% if st.is_active %}إيقاف{% else %}قبول وتفعيل{% endif %}
+                                </button>
+                              </form>
+                            </td>
+                          </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                {% else %}
+                  <div class="text-secondary small py-2">لا يوجد طلاب مسجلون في {{ g }} حالياً.</div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <!-- فلتر الصف الدراسي للباقات والاختبارات -->
+    <div class="math-card mb-4">
       <form method="GET" action="{{ url_for('admin_dashboard') }}" class="row g-2 align-items-end">
         <div class="col-md-6">
-          <label class="form-label fw-bold text-info">تصفية البيانات حسب الصف الدراسي</label>
+          <label class="form-label fw-bold text-info">تصفية المحتوى والاختبارات حسب الصف الدراسي</label>
           <select name="grade" class="form-select">
             <option value="">كل الصفوف الدراسية</option>
             {% for g in grades %}
@@ -109,128 +376,8 @@
       </form>
     </div>
 
-    <!-- قسم الكول سنتر وإدارة الطلاب: الصفوف وبيانات الطلاب ومستوياتهم وحالتهم -->
-    <section class="admin-card mb-4 border-info border-opacity-50" id="callCenterSection">
-      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-        <div>
-          <h2 class="h5 fw-bold text-info mb-1">
-            <i class="bi bi-headset me-1"></i> لوحة الكول سنتر والطلاب — الصفوف والبيانات والمستويات والحالة
-          </h2>
-          <div class="small text-secondary">فتح أي صف دراسي والاطلاع على بيانات الطالب كاملة ومستواه (0% إذا لم يبدأ) وحالة الحساب</div>
-        </div>
-        <span class="badge bg-info text-dark fs-6">{{ students_data|length }} طالب</span>
-      </div>
-
-      <div class="d-flex flex-wrap gap-2 mb-4">
-        <a href="{{ url_for('admin_dashboard') }}#callCenterSection"
-           class="btn btn-sm {% if not selected_grade %}btn-info text-dark fw-bold{% else %}btn-outline-info{% endif %}">
-          كل الصفوف
-        </a>
-        {% for g in grades %}
-          <a href="{{ url_for('admin_dashboard', grade=g) }}#callCenterSection"
-             class="btn btn-sm {% if selected_grade == g %}btn-info text-dark fw-bold{% else %}btn-outline-light{% endif %}">
-            {{ g }}
-          </a>
-        {% endfor %}
-      </div>
-
-      <div class="table-responsive">
-        <table class="table table-dark table-bordered table-hover align-middle small mb-0">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>اسم الطالب</th>
-              <th>الصف الدراسي</th>
-              <th>رقم الطالب</th>
-              <th>رقم ولي الأمر</th>
-              <th>المحافظة</th>
-              <th>المستوى (0% لو لم يبدأ)</th>
-              <th>الفيديوهات والامتحانات</th>
-              <th>حالة الحساب</th>
-              <th>إجراء</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for row in students_data %}
-              {% set st = row.user %}
-              {% set lvl = row.level %}
-              {% set has_started = (lvl.watched_count > 0) or (lvl.solved_exams > 0) %}
-              {% set shown_pct = lvl.overall if has_started else 0.0 %}
-              <tr>
-                <td>{{ loop.index }}</td>
-                <td class="fw-bold text-white">{{ st.full_name }}</td>
-                <td><span class="badge bg-primary">{{ st.grade or '-' }}</span></td>
-                <td>
-                  <a href="tel:{{ st.phone }}" class="text-info text-decoration-none fw-bold">{{ st.phone }}</a>
-                </td>
-                <td>
-                  {% if st.parent_phone %}
-                    <a href="tel:{{ st.parent_phone }}" class="text-light text-decoration-none">{{ st.parent_phone }}</a>
-                  {% else %}
-                    -
-                  {% endif %}
-                </td>
-                <td>{{ st.governorate or '-' }}</td>
-                <td>
-                  <div class="fw-bold text-info fs-6">{{ shown_pct }}%</div>
-                  {% if has_started %}
-                    <span class="badge {{ lvl.badge_class }}">{{ lvl.label }}</span>
-                  {% else %}
-                    <span class="badge bg-secondary">لم يبدأ بعد (0%)</span>
-                  {% endif %}
-                </td>
-                <td>
-                  <div>مشاهدة: <strong>{{ lvl.watched_count }}/{{ lvl.total_videos }}</strong></div>
-                  <div>الامتحانات: <strong>{{ lvl.solved_exams }}/{{ lvl.total_exams }}</strong> (متوسط {{ lvl.avg_score if has_started else 0.0 }}%)</div>
-                </td>
-                <td>
-                  {% if st.is_active %}
-                    <span class="badge bg-success">مفعل</span>
-                  {% else %}
-                    <span class="badge bg-warning text-dark">قيد المراجعة</span>
-                  {% endif %}
-                </td>
-                <td>
-                  <form method="POST" action="{{ url_for('toggle_student', student_id=st.id) }}">
-                    <button type="submit" class="btn btn-sm {% if st.is_active %}btn-outline-warning{% else %}btn-success{% endif %}">
-                      {% if st.is_active %}إيقاف{% else %}قبول وتفعيل{% endif %}
-                    </button>
-                  </form>
-                </td>
-              </tr>
-            {% else %}
-              <tr>
-                <td colspan="10" class="text-center text-secondary py-4">
-                  لا يوجد طلاب مسجلون في هذا الصف حالياً.
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- ملخص الصفوف -->
-    {% if grade_summary %}
-      <div class="row g-3 mb-4">
-        {% for item in grade_summary %}
-          <div class="col-md-6 col-lg-4">
-            <div class="admin-card h-100">
-              <div class="fw-bold text-info mb-2">{{ item.grade }}</div>
-              <div class="small text-light opacity-75 d-flex justify-content-between">
-                <span>الطلاب: <strong>{{ item.students_count }}</strong></span>
-                <span>الأسابيع: <strong>{{ item.weeks_count }}</strong></span>
-                <span>الامتحانات: <strong>{{ item.exams_count }}</strong></span>
-              </div>
-              <div class="small text-secondary mt-2">متوسط المستوى: {{ item.avg_level }}%</div>
-            </div>
-          </div>
-        {% endfor %}
-      </div>
-    {% endif %}
-
     <!-- إعدادات المنصة والمدرس -->
-    <div class="admin-card mb-4">
+    <div class="math-card mb-4">
       <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-sliders me-1"></i> إعدادات المنصة وحساب الإدارة</h2>
       <form method="POST" action="{{ url_for('update_settings') }}" enctype="multipart/form-data" class="row g-3">
         <div class="col-md-6">
@@ -290,7 +437,7 @@
     <!-- إضافة أسبوع/باقة ومحتوى -->
     <div class="row g-4 mb-4">
       <div class="col-lg-6">
-        <div class="admin-card h-100">
+        <div class="math-card h-100">
           <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-folder-plus me-1"></i> إضافة أسبوع / باقة جديدة</h2>
           <form method="POST" action="{{ url_for('add_week') }}" enctype="multipart/form-data" class="d-grid gap-2">
             <input type="text" name="title" class="form-control" placeholder="عنوان الأسبوع أو الباقة" required />
@@ -321,7 +468,7 @@
       </div>
 
       <div class="col-lg-6">
-        <div class="admin-card h-100">
+        <div class="math-card h-100">
           <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-file-earmark-plus me-1"></i> إضافة محتوى داخل أسبوع</h2>
           <form method="POST" action="{{ url_for('add_content') }}" enctype="multipart/form-data" class="d-grid gap-2">
             <select name="week_id" class="form-select" required>
@@ -358,7 +505,7 @@
     </div>
 
     <!-- الأسابيع المنشورة -->
-    <div class="admin-card mb-4">
+    <div class="math-card mb-4">
       <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-list-check me-1"></i> الأسابيع والباقات الحالية ({{ weeks|length }})</h2>
       <div class="d-grid gap-2">
         {% for w in weeks %}
@@ -387,7 +534,7 @@
     <!-- الاختبارات والأسئلة -->
     <div class="row g-4 mb-4">
       <div class="col-lg-6">
-        <div class="admin-card h-100">
+        <div class="math-card h-100">
           <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-journal-plus me-1"></i> إنشاء اختبار إلكتروني</h2>
           <form method="POST" action="{{ url_for('add_exam') }}" class="d-grid gap-2">
             <input type="text" name="title" class="form-control" placeholder="عنوان الاختبار" required />
@@ -404,7 +551,7 @@
       </div>
 
       <div class="col-lg-6">
-        <div class="admin-card h-100">
+        <div class="math-card h-100">
           <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-question-circle me-1"></i> إضافة سؤال اختيار من متعدد</h2>
           <form method="POST" action="{{ url_for('add_question') }}" class="d-grid gap-2">
             <select name="exam_id" class="form-select" required>
@@ -433,7 +580,7 @@
     </div>
 
     <!-- قائمة الاختبارات الحالية -->
-    <div class="admin-card mb-4">
+    <div class="math-card mb-4">
       <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-card-checklist me-1"></i> الاختبارات الحالية ({{ exams|length }})</h2>
       <div class="d-grid gap-2">
         {% for ex in exams %}
@@ -453,7 +600,7 @@
     </div>
 
     <!-- أكواد التفعيل -->
-    <div class="admin-card mb-4">
+    <div class="math-card mb-4">
       <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-key-fill me-1"></i> أكواد التفعيل</h2>
       <form method="POST" action="{{ url_for('generate_codes') }}" class="row g-2 mb-3">
         <div class="col-md-4">
@@ -526,7 +673,7 @@
     <!-- المراكز والإعلانات -->
     <div class="row g-4 mb-4">
       <div class="col-lg-6">
-        <div class="admin-card h-100">
+        <div class="math-card h-100">
           <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-geo-alt-fill me-1"></i> المراكز والفروع</h2>
           <form method="POST" action="{{ url_for('add_center') }}" class="d-grid gap-2 mb-3">
             <input type="text" name="name" class="form-control" placeholder="اسم السنتر أو الفرع" required />
@@ -551,7 +698,7 @@
       </div>
 
       <div class="col-lg-6">
-        <div class="admin-card h-100">
+        <div class="math-card h-100">
           <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-megaphone-fill me-1"></i> الإعلانات والتنبيهات</h2>
           <form method="POST" action="{{ url_for('add_announcement') }}" class="d-grid gap-2 mb-3">
             <input type="text" name="title" class="form-control" placeholder="عنوان التنبيه" required />
@@ -576,7 +723,7 @@
     </div>
 
     <!-- نتائج الامتحانات -->
-    <div class="admin-card mb-4">
+    <div class="math-card mb-4">
       <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-award-fill me-1"></i> نتائج الطلاب في الامتحانات ({{ exam_results|length }})</h2>
       <div class="table-responsive">
         <table class="table table-dark table-bordered align-middle small mb-0">
@@ -619,6 +766,11 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
+    function closeLoginModal() {
+      const m = document.getElementById("loginSuccessModal");
+      if (m) { m.remove(); }
+    }
+
     setTimeout(function () {
       document.querySelectorAll("#flashContainer .alert").forEach(function (el) {
         el.style.transition = "opacity 0.4s ease";

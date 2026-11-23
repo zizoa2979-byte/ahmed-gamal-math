@@ -19,7 +19,7 @@ app.secret_key = (os.environ.get("SECRET_KEY") or "ahmed_gamal_math_platform_202
 
 DEFAULT_TEACHER_NAME = "مستر / أحمد جمال"
 DEFAULT_PLATFORM_NAME = "الرياضة أسهل وأوضح مع مستر أحمد جمال"
-DEFAULT_TEACHER_BIO = "الرياضة أسهل وأوضح مع مستر أحمد جمال — شرح مبسط ومنهجي، تدريب مكثف على أفكار الامتحانات، وتقييم مستمر للمستوى."
+DEFAULT_TEACHER_BIO = "منصة متكاملة للرياضيات والهندسة والجبر وحساب المثلثات — شرح مبسط ومنهجي، تدريب مكثف على أفكار الامتحانات، ومتابعة مستمرة للمستوى."
 DEFAULT_WHATSAPP = "01070626007"
 DEVELOPER_CREDIT = "تم التصميم والتطوير بواسطة المهندس عبد العزيز أمير"
 
@@ -82,9 +82,9 @@ GRADES = [
 ]
 
 CONTENT_SECTIONS = [
-    ("explanation", "تقسيم الشرح"),
-    ("training", "تقسيم التدريبات"),
-    ("exam_section", "تقسيم الاختبار"),
+    ("explanation", "عن الكورس والشرح"),
+    ("training", "المنتدى والتدريبات"),
+    ("exam_section", "الجلسات والاختبارات"),
 ]
 
 
@@ -342,7 +342,7 @@ def evaluate_student_level(student):
             VideoProgress.content_id.in_(video_ids)
         ).count()
 
-    video_ratio = (watched_count / total_videos * 100.0) if total_videos > 0 else 100.0
+    video_ratio = (watched_count / total_videos * 100.0) if total_videos > 0 else 0.0
 
     grade_exams = Exam.query.filter_by(grade=student.grade).all()
     total_exams = len(grade_exams)
@@ -351,21 +351,25 @@ def evaluate_student_level(student):
 
     solved_exam_ids = {r.exam_id for r in student_results}
     solved_count = len(solved_exam_ids)
-    exam_completion_ratio = (solved_count / total_exams * 100.0) if total_exams > 0 else 100.0
+    exam_completion_ratio = (solved_count / total_exams * 100.0) if total_exams > 0 else 0.0
 
     if student_results:
         avg_score = sum(r.percentage for r in student_results) / len(student_results)
-    elif total_exams == 0:
-        avg_score = 100.0
     else:
         avg_score = 0.0
 
-    if total_videos == 0 and total_exams == 0:
+    if watched_count == 0 and solved_count == 0:
         overall = 0.0
     else:
-        overall = round((video_ratio * 0.30) + (exam_completion_ratio * 0.30) + (avg_score * 0.40), 1)
+        w_part = video_ratio * 0.30 if total_videos > 0 else 0.0
+        e_part = exam_completion_ratio * 0.30 if total_exams > 0 else 0.0
+        s_part = avg_score * 0.40 if student_results else 0.0
+        overall = round(w_part + e_part + s_part, 1)
 
-    if overall >= 85 and (total_videos == 0 or watched_count == total_videos) and (total_exams == 0 or solved_count == total_exams):
+    if watched_count == 0 and solved_count == 0:
+        label = "لم يبدأ بعد"
+        badge_class = "bg-secondary"
+    elif overall >= 85:
         label = "متفوق وممتاز"
         badge_class = "bg-info text-dark"
     elif overall >= 70:
@@ -441,12 +445,9 @@ def admin_required(f):
 @app.context_processor
 def inject_globals():
     current_user = None
-    recent_students = []
     if "user_id" in session:
         try:
             current_user = db.session.get(User, session["user_id"])
-            if current_user and current_user.role == "admin":
-                recent_students = User.query.filter_by(role="student").order_by(User.created_at.desc()).limit(6).all()
         except Exception:
             try:
                 db.session.rollback()
@@ -456,7 +457,6 @@ def inject_globals():
     return dict(
         settings=get_settings(),
         current_user=current_user,
-        recent_students=recent_students,
         grades=GRADES,
         content_sections=CONTENT_SECTIONS,
         clean_wa_phone=clean_wa_phone,
@@ -467,17 +467,17 @@ def inject_globals():
 
 @app.route("/")
 def index():
-    students_by_grade = {g: [] for g in GRADES}
+    centers = []
+    announcements = []
     try:
-        for g in GRADES:
-            g_students_raw = User.query.filter_by(role="student", grade=g).order_by(User.created_at.desc()).all()
-            students_by_grade[g] = [{"user": s, "level": evaluate_student_level(s)} for s in g_students_raw]
+        centers = CenterBranch.query.order_by(CenterBranch.created_at.desc()).limit(10).all()
+        announcements = Announcement.query.order_by(Announcement.created_at.desc()).limit(10).all()
     except Exception:
         try:
             db.session.rollback()
         except Exception:
             pass
-    return render_template("index.html", students_by_grade=students_by_grade)
+    return render_template("index.html", centers=centers, announcements=announcements)
 
 
 @app.route("/auth", methods=["GET", "POST"])
@@ -503,14 +503,12 @@ def auth():
                 db.session.commit()
                 session["user_id"] = user.id
                 session["session_token"] = token
+                session["login_success_modal"] = True
                 if user.role == "admin":
-                    flash(f"مرحباً بك يا {user.full_name} — تم الدخول إلى لوحة الإدارة.", "success")
                     return redirect(url_for("admin_dashboard"))
                 needs_onboarding = not all([user.full_name, user.phone, user.parent_phone, user.governorate, user.grade])
                 if needs_onboarding:
-                    flash(f"مرحباً بك يا {user.full_name} — يرجى إكمال بيانات التسجيل (Onboarding).", "info")
                     return redirect(url_for("student_dashboard", onboarding="1"))
-                flash(f"مرحباً بك يا {user.full_name} — تم تسجيل الدخول بنجاح.", "success")
                 return redirect(url_for("student_dashboard"))
             else:
                 flash("بيانات الدخول غير صحيحة، تأكد من رقم الهاتف/اسم المستخدم وكلمة المرور.", "danger")
@@ -536,6 +534,9 @@ def auth():
                 flash("رقم هاتف الطالب مسجل بالفعل، يمكنك تسجيل الدخول مباشرة.", "warning")
                 return render_template("auth.html", mode="login")
 
+            settings = get_settings()
+            auto_act = bool(settings.auto_activate_students)
+
             token = uuid.uuid4().hex
             new_user = User(
                 full_name=full_name,
@@ -546,7 +547,7 @@ def auth():
                 grade=grade,
                 password_hash=generate_password_hash(password),
                 role="student",
-                is_active=False,
+                is_active=auto_act,
                 session_token=token
             )
             db.session.add(new_user)
@@ -554,6 +555,7 @@ def auth():
 
             session["user_id"] = new_user.id
             session["session_token"] = token
+            session["login_success_modal"] = True
             flash("تم إنشاء الحساب بنجاح — سوف يتم مراجعة حساباتكم ولن يظهر المحتوى إلا بعد قبول وموافقة الإدارة على الحساب.", "info")
             return redirect(url_for("student_dashboard", onboarding="1"))
 
@@ -605,6 +607,7 @@ def student_dashboard():
     if user.role == "admin":
         return redirect(url_for("admin_dashboard"))
 
+    show_login_modal = bool(session.pop("login_success_modal", False))
     force_onboarding = request.args.get("onboarding") == "1"
     missing_profile = not all([user.full_name, user.phone, user.parent_phone, user.governorate, user.grade])
     show_onboarding = bool(force_onboarding or missing_profile)
@@ -618,6 +621,7 @@ def student_dashboard():
             user=user,
             pending_approval=True,
             show_onboarding=show_onboarding,
+            show_login_modal=show_login_modal,
             announcements=announcements
         )
 
@@ -679,6 +683,7 @@ def student_dashboard():
         user=user,
         pending_approval=False,
         show_onboarding=show_onboarding,
+        show_login_modal=show_login_modal,
         tab=tab,
         weeks=weeks,
         subscribed_weeks=subscribed_weeks,
@@ -796,13 +801,17 @@ def take_exam(exam_id):
 @admin_required
 def admin_dashboard():
     selected_grade = request.args.get("grade", "").strip()
+    show_login_modal = bool(session.pop("login_success_modal", False))
 
     try:
+        all_students_raw = User.query.filter_by(role="student").order_by(User.created_at.desc()).all()
+        pending_students = [s for s in all_students_raw if not s.is_active]
+
         students_by_grade = {}
         grade_summary = []
 
         for g in GRADES:
-            g_students_raw = User.query.filter_by(role="student", grade=g).order_by(User.created_at.desc()).all()
+            g_students_raw = [s for s in all_students_raw if (s.grade or "").strip() == g]
             g_students_enriched = [{"user": s, "level": evaluate_student_level(s)} for s in g_students_raw]
             students_by_grade[g] = g_students_enriched
 
@@ -812,26 +821,23 @@ def admin_dashboard():
             grade_summary.append({
                 "grade": g,
                 "students_count": len(g_students_enriched),
+                "pending_count": len([s for s in g_students_raw if not s.is_active]),
                 "weeks_count": g_weeks_count,
                 "exams_count": g_exams_count,
                 "avg_level": avg_lvl
             })
 
-        students_query = User.query.filter_by(role="student")
-        weeks_query = Week.query
-        exams_query = Exam.query
-
         if selected_grade:
-            students_query = students_query.filter_by(grade=selected_grade)
-            weeks_query = weeks_query.filter_by(grade=selected_grade)
-            exams_query = exams_query.filter_by(grade=selected_grade)
+            students_raw = [s for s in all_students_raw if (s.grade or "").strip() == selected_grade]
+            weeks = Week.query.filter_by(grade=selected_grade).order_by(Week.order_num.asc()).all()
+            exams = Exam.query.filter_by(grade=selected_grade).order_by(Exam.created_at.desc()).all()
+        else:
+            students_raw = all_students_raw
+            weeks = Week.query.order_by(Week.order_num.asc()).all()
+            exams = Exam.query.order_by(Exam.created_at.desc()).all()
 
-        students_raw = students_query.order_by(User.created_at.desc()).all()
         students_data = [{"user": s, "level": evaluate_student_level(s)} for s in students_raw]
-
-        weeks = weeks_query.order_by(Week.order_num.asc()).all()
         all_weeks = Week.query.order_by(Week.order_num.asc()).all()
-        exams = exams_query.order_by(Exam.created_at.desc()).all()
         all_exams = Exam.query.order_by(Exam.created_at.desc()).all()
         exams_map = {e.id: e.title for e in all_exams}
         codes = AccessCode.query.order_by(AccessCode.created_at.desc()).limit(100).all()
@@ -848,6 +854,7 @@ def admin_dashboard():
         except Exception:
             pass
         flash(f"حدث تنبيه أثناء تحميل بعض بيانات الإدارة: {exc}", "warning")
+        pending_students = []
         students_by_grade = {g: [] for g in GRADES}
         grade_summary = []
         students_data = []
@@ -864,6 +871,8 @@ def admin_dashboard():
     return render_template(
         "admin.html",
         selected_grade=selected_grade,
+        show_login_modal=show_login_modal,
+        pending_students=pending_students,
         students_by_grade=students_by_grade,
         grade_summary=grade_summary,
         students_data=students_data,
@@ -1220,8 +1229,8 @@ def internal_error(error):
     except Exception:
         pass
     return (
-        "<html lang='ar' dir='rtl'><body style='background:#071324;color:#fff;font-family:sans-serif;text-align:center;padding:50px;'>"
-        "<h3>حدث خطأ مؤقت في الخادم</h3><p><a href='/' style='color:#38bdf8;'>العودة للرئيسية</a></p></body></html>",
+        "<html lang='ar' dir='rtl'><body style='background:#06111f;color:#fff;font-family:sans-serif;text-align:center;padding:50px;'>"
+        "<h3>حدث خطأ مؤقت في الخادم</h3><p><a href='/' style='color:#22d3ee;'>العودة للرئيسية</a></p></body></html>",
         500,
     )
 
