@@ -43,6 +43,17 @@
     .auto-dismiss-alert {
       transition: opacity 0.4s ease;
     }
+    .dev-credit-muted {
+      color: #9fb3c8;
+      font-size: 0.82rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(159, 179, 200, 0.16);
+    }
   </style>
 </head>
 <body>
@@ -66,6 +77,8 @@
         </div>
       {% endif %}
     {% endwith %}
+
+    <div id="clientValidationAlert" class="alert alert-danger rounded-3 small d-none"></div>
 
     <div class="row g-2 mb-4">
       <div class="col-6">
@@ -98,22 +111,22 @@
       </button>
     </form>
 
-    <form id="registerForm" method="POST" action="{{ url_for('auth') }}" class="{% if mode != 'register' %}d-none{% endif %}">
+    <form id="registerForm" method="POST" action="{{ url_for('auth') }}" class="{% if mode != 'register' %}d-none{% endif %}" onsubmit="return validateRegisterForm(this);">
       <input type="hidden" name="action" value="register" />
 
       <div class="mb-3">
         <label class="form-label">اسم الطالب بالكامل</label>
-        <input type="text" name="full_name" class="form-control" placeholder="اكتب اسمك الثلاثي أو الرباعي" required />
+        <input type="text" id="regFullName" name="full_name" class="form-control" placeholder="اكتب اسمك الثلاثي أو الرباعي" required />
       </div>
 
       <div class="mb-3">
         <label class="form-label">رقم هاتف الطالب</label>
-        <input type="text" name="phone" class="form-control" placeholder="01xxxxxxxxx" required />
+        <input type="text" id="regPhone" name="phone" class="form-control" placeholder="01xxxxxxxxx" required />
       </div>
 
       <div class="mb-3">
         <label class="form-label">الصف الدراسي</label>
-        <select name="grade" class="form-select" required>
+        <select id="regGrade" name="grade" class="form-select" required>
           <option value="">اختر الصف الدراسي</option>
           {% for g in grades %}
             <option value="{{ g }}">{{ g }}</option>
@@ -123,31 +136,70 @@
 
       <div class="mb-3">
         <label class="form-label">رقم ولي الأمر</label>
-        <input type="text" name="parent_phone" class="form-control" placeholder="01xxxxxxxxx" required />
+        <input type="text" id="regParentPhone" name="parent_phone" class="form-control" placeholder="01xxxxxxxxx (يجب أن يختلف عن رقم الطالب)" required />
       </div>
 
       <div class="mb-3">
         <label class="form-label">المحافظة</label>
-        <input type="text" name="governorate" class="form-control" value="الدقهلية" required />
+        <input type="text" id="regGovernorate" name="governorate" class="form-control" value="الدقهلية" required />
       </div>
 
       <div class="mb-3">
         <label class="form-label">كلمة المرور</label>
-        <input type="password" name="password" class="form-control" placeholder="اختر كلمة مرور قوية" required />
+        <input type="password" id="regPassword" name="password" class="form-control" placeholder="اختر كلمة مرور قوية" required />
       </div>
 
       <button type="submit" class="btn btn-success w-100 py-2 fw-bold rounded-3">
         إنشاء حساب الطالب الآن
       </button>
     </form>
+
+    <div class="text-center mt-4 pt-3 border-top border-secondary border-opacity-25">
+      <div class="mb-1" style="color:#9fb3c8;font-size:0.8rem;">جميع الحقوق محفوظة © 2026</div>
+      <div class="dev-credit-muted">
+        <i class="bi bi-code-slash"></i>
+        <span>{{ developer_credit }}</span>
+      </div>
+    </div>
   </div>
 
   <script>
+    function showValidationMsg(msg) {
+      const box = document.getElementById("clientValidationAlert");
+      if (!box) return;
+      box.textContent = msg;
+      box.classList.remove("d-none");
+      box.style.opacity = "1";
+    }
+
+    function validateRegisterForm(form) {
+      const fullName = (document.getElementById("regFullName").value || "").trim();
+      const phone = (document.getElementById("regPhone").value || "").trim();
+      const grade = (document.getElementById("regGrade").value || "").trim();
+      const parentPhone = (document.getElementById("regParentPhone").value || "").trim();
+      const governorate = (document.getElementById("regGovernorate").value || "").trim();
+      const password = (document.getElementById("regPassword").value || "").trim();
+
+      if (!fullName || !phone || !grade || !parentPhone || !governorate || !password) {
+        showValidationMsg("لا يُسمح بترك أي خانة فارغة! يرجى ملء كل البيانات المطلوبة.");
+        return false;
+      }
+
+      if (phone === parentPhone) {
+        showValidationMsg("رقم هاتف الطالب لا يجوز أن يكون نفس رقم هاتف ولي الأمر.");
+        return false;
+      }
+
+      return true;
+    }
+
     function switchMode(target) {
       const loginForm = document.getElementById("loginForm");
       const registerForm = document.getElementById("registerForm");
       const btnLogin = document.getElementById("btnShowLogin");
       const btnReg = document.getElementById("btnShowRegister");
+      const vBox = document.getElementById("clientValidationAlert");
+      if (vBox) vBox.classList.add("d-none");
 
       if (target === "register") {
         loginForm.classList.add("d-none");
@@ -168,6 +220,7 @@
 
     setTimeout(function () {
       document.querySelectorAll(".alert").forEach(function (el) {
+        if (el.id === "clientValidationAlert") return;
         el.style.transition = "opacity 0.4s ease";
         el.style.opacity = "0";
         setTimeout(function () { el.remove(); }, 400);

@@ -20,6 +20,7 @@ DEFAULT_TEACHER_NAME = "مستر / أحمد جمال"
 DEFAULT_PLATFORM_NAME = "الرياضة أسهل وأوضح مع مستر أحمد جمال"
 DEFAULT_TEACHER_BIO = "الرياضة أسهل وأوضح مع مستر أحمد جمال — شرح مبسط ومنهجي، تدريب مكثف على أفكار الامتحانات، وتقييم مستمر للمستوى."
 DEFAULT_WHATSAPP = "01070626007"
+DEVELOPER_CREDIT = "تم التصميم والتطوير بواسطة المهندس عبد العزيز أمير"
 
 
 def normalize_db_url(raw_url: str) -> str:
@@ -80,14 +81,11 @@ GRADES = [
 ]
 
 CONTENT_SECTIONS = [
-    ("explanation", "الشرح"),
-    ("interactive", "التطبيق التفاعلي"),
-    ("homework", "تسليم الواجب"),
-    ("exam_link", "الامتحان"),
+    ("explanation", "تقسيم الشرح"),
+    ("training", "تقسيم التدريبات"),
+    ("exam_section", "تقسيم الاختبار"),
 ]
 
-
-# ===================== نماذج قاعدة البيانات =====================
 
 class PlatformSettings(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -142,7 +140,7 @@ class WeekContent(db.Model):
     title = db.Column(db.String(200), nullable=False)
     section_key = db.Column(db.String(30), default="explanation")
     content_type = db.Column(db.String(30), nullable=False)
-    source_path = db.Column(db.String(500), nullable=False)
+    source_path = db.Column(db.String(500), default="")
     duration_or_notes = db.Column(db.String(150), default="")
     order_num = db.Column(db.Integer, default=1)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -222,8 +220,6 @@ class Announcement(db.Model):
     grade = db.Column(db.String(80), default="")
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-
-# ===================== دوال مساعدة وقفل المحتوى وتحديد المستوى =====================
 
 def _sanitize_settings_obj(settings):
     if not settings:
@@ -329,7 +325,8 @@ def evaluate_student_level(student):
 
     grade_exams = Exam.query.filter_by(grade=student.grade).all()
     total_exams = len(grade_exams)
-    student_results = ExamResult.query.filter_by(user_id=student.id).all()
+    exams_title_map = {e.id: e.title for e in grade_exams}
+    student_results = ExamResult.query.filter_by(user_id=student.id).order_by(ExamResult.submitted_at.desc()).all()
 
     solved_exam_ids = {r.exam_id for r in student_results}
     solved_count = len(solved_exam_ids)
@@ -349,7 +346,7 @@ def evaluate_student_level(student):
 
     if overall >= 85 and (total_videos == 0 or watched_count == total_videos) and (total_exams == 0 or solved_count == total_exams):
         label = "متفوق وممتاز"
-        badge_class = "bg-warning text-dark"
+        badge_class = "bg-info text-dark"
     elif overall >= 70:
         label = "جيد جداً"
         badge_class = "bg-info text-dark"
@@ -358,7 +355,19 @@ def evaluate_student_level(student):
         badge_class = "bg-success"
     else:
         label = "يحتاج متابعة"
-        badge_class = "bg-danger"
+        badge_class = "bg-secondary"
+
+    exam_details = []
+    for r in student_results:
+        ex_obj = db.session.get(Exam, r.exam_id)
+        ex_title = exams_title_map.get(r.exam_id) or (ex_obj.title if ex_obj else f"امتحان #{r.exam_id}")
+        exam_details.append({
+            "exam_title": ex_title,
+            "score": r.score,
+            "total": r.total_questions,
+            "percentage": r.percentage,
+            "submitted_at": r.submitted_at.strftime("%Y-%m-%d %H:%M") if r.submitted_at else "-"
+        })
 
     return {
         "overall": overall,
@@ -371,6 +380,7 @@ def evaluate_student_level(student):
         "total_exams": total_exams,
         "exam_pct": round(exam_completion_ratio, 1),
         "avg_score": round(avg_score, 1),
+        "exam_details": exam_details
     }
 
 
@@ -429,11 +439,10 @@ def inject_globals():
         grades=GRADES,
         content_sections=CONTENT_SECTIONS,
         clean_wa_phone=clean_wa_phone,
-        quote=quote
+        quote=quote,
+        developer_credit=DEVELOPER_CREDIT
     )
 
-
-# ===================== المسارات العامة والمصادقة =====================
 
 @app.route("/")
 def index():
@@ -448,7 +457,11 @@ def auth():
 
         if action == "login":
             login_id = (request.form.get("login_id") or request.form.get("phone") or "").strip()
-            password = request.form.get("password", "")
+            password = (request.form.get("password") or "").strip()
+            if not login_id or not password:
+                flash("يرجى عدم ترك أي خانة فارغة عند تسجيل الدخول.", "danger")
+                return render_template("auth.html", mode="login")
+
             user = User.query.filter(
                 (User.phone == login_id) | (User.username == login_id)
             ).first()
@@ -468,37 +481,36 @@ def auth():
                 return render_template("auth.html", mode="login")
 
         elif action == "register":
-            full_name = request.form.get("full_name", "").strip()
-            phone = request.form.get("phone", "").strip()
-            parent_phone = request.form.get("parent_phone", "").strip()
-            governorate = request.form.get("governorate", "الدقهلية").strip()
-            grade = request.form.get("grade", "").strip()
-            password = request.form.get("password", "")
+            full_name = (request.form.get("full_name") or "").strip()
+            phone = (request.form.get("phone") or "").strip()
+            parent_phone = (request.form.get("parent_phone") or "").strip()
+            governorate = (request.form.get("governorate") or "").strip()
+            grade = (request.form.get("grade") or "").strip()
+            password = (request.form.get("password") or "").strip()
 
-            if not all([full_name, phone, parent_phone, grade, password]):
-                flash("يرجى إدخال اسم الطالب بالكامل، رقم هاتف الطالب، الصف الدراسي، رقم ولي الأمر، المحافظة، وكلمة المرور.", "danger")
+            if not all([full_name, phone, parent_phone, governorate, grade, password]):
+                flash("لا يُسمح بترك أي خانة فارغة! يرجى إدخال جميع البيانات المطلوبة.", "danger")
                 return render_template("auth.html", mode="register")
 
             if phone == parent_phone:
-                flash("رقم هاتف ولي الأمر يجب أن يكون مختلفاً عن رقم هاتف الطالب.", "warning")
+                flash("رقم هاتف الطالب ورقم هاتف ولي الأمر لا يجوز أن يكونا متطابقين.", "warning")
                 return render_template("auth.html", mode="register")
 
             if User.query.filter_by(phone=phone).first():
                 flash("رقم هاتف الطالب مسجل بالفعل، يمكنك تسجيل الدخول مباشرة.", "warning")
                 return render_template("auth.html", mode="login")
 
-            settings = get_settings()
             token = uuid.uuid4().hex
             new_user = User(
                 full_name=full_name,
                 phone=phone,
                 parent_name="",
                 parent_phone=parent_phone,
-                governorate=governorate or "الدقهلية",
+                governorate=governorate,
                 grade=grade,
                 password_hash=generate_password_hash(password),
                 role="student",
-                is_active=settings.auto_activate_students,
+                is_active=False,
                 session_token=token
             )
             db.session.add(new_user)
@@ -506,7 +518,7 @@ def auth():
 
             session["user_id"] = new_user.id
             session["session_token"] = token
-            flash("تم إنشاء حسابك بنجاح! مرحباً بك في منصة مستر أحمد جمال.", "success")
+            flash("سوف يتم مراجعة حساباتكم ولن يظهر المحتوى إلا بعد قبول وموافقة الإدارة على الحساب.", "info")
             return redirect(url_for("student_dashboard"))
 
     return render_template("auth.html", mode=mode)
@@ -519,14 +531,18 @@ def logout():
     return redirect(url_for("index"))
 
 
-# ===================== لوحة الطالب =====================
-
 @app.route("/student")
 @login_required
 def student_dashboard():
     user = db.session.get(User, session["user_id"])
     if user.role == "admin":
         return redirect(url_for("admin_dashboard"))
+
+    if not user.is_active:
+        announcements = Announcement.query.filter(
+            (Announcement.grade == "") | (Announcement.grade == None) | (Announcement.grade == user.grade)
+        ).order_by(Announcement.created_at.desc()).limit(10).all()
+        return render_template("student.html", user=user, pending_approval=True, announcements=announcements)
 
     tab = request.args.get("tab", "overview")
     weeks = Week.query.filter_by(grade=user.grade, is_published=True).order_by(Week.order_num.asc()).all()
@@ -584,6 +600,7 @@ def student_dashboard():
     return render_template(
         "student.html",
         user=user,
+        pending_approval=False,
         tab=tab,
         weeks=weeks,
         subscribed_weeks=subscribed_weeks,
@@ -607,6 +624,9 @@ def student_dashboard():
 @login_required
 def mark_watched(content_id):
     user = db.session.get(User, session["user_id"])
+    if not user.is_active:
+        flash("سوف يتم مراجعة حساباتكم ولن يظهر المحتوى إلا بعد قبول الحساب.", "warning")
+        return redirect(url_for("student_dashboard"))
     content = db.session.get(WeekContent, content_id)
     if not content:
         return redirect(url_for("student_dashboard"))
@@ -654,6 +674,9 @@ def redeem_code():
 @login_required
 def take_exam(exam_id):
     user = db.session.get(User, session["user_id"])
+    if user.role != "admin" and not user.is_active:
+        flash("سوف يتم مراجعة حساباتكم ولن يظهر المحتوى إلا بعد قبول الحساب.", "warning")
+        return redirect(url_for("student_dashboard"))
     exam = db.session.get(Exam, exam_id)
     if not exam:
         return redirect(url_for("student_dashboard"))
@@ -691,23 +714,26 @@ def take_exam(exam_id):
     return render_template("exam.html", exam=exam, user=user)
 
 
-# ===================== لوحة الإدارة =====================
-
 @app.route("/admin")
 @admin_required
 def admin_dashboard():
     selected_grade = request.args.get("grade", "").strip()
 
     try:
+        students_by_grade = {}
         grade_summary = []
+
         for g in GRADES:
-            g_students = User.query.filter_by(role="student", grade=g).all()
+            g_students_raw = User.query.filter_by(role="student", grade=g).order_by(User.created_at.desc()).all()
+            g_students_enriched = [{"user": s, "level": evaluate_student_level(s)} for s in g_students_raw]
+            students_by_grade[g] = g_students_enriched
+
             g_weeks_count = Week.query.filter_by(grade=g).count()
             g_exams_count = Exam.query.filter_by(grade=g).count()
-            avg_lvl = round(sum(evaluate_student_level(s)["overall"] for s in g_students) / len(g_students), 1) if g_students else 0.0
+            avg_lvl = round(sum(item["level"]["overall"] for item in g_students_enriched) / len(g_students_enriched), 1) if g_students_enriched else 0.0
             grade_summary.append({
                 "grade": g,
-                "students_count": len(g_students),
+                "students_count": len(g_students_enriched),
                 "weeks_count": g_weeks_count,
                 "exams_count": g_exams_count,
                 "avg_level": avg_lvl
@@ -744,6 +770,7 @@ def admin_dashboard():
         except Exception:
             pass
         flash(f"حدث تنبيه أثناء تحميل بعض بيانات الإدارة: {exc}", "warning")
+        students_by_grade = {g: [] for g in GRADES}
         grade_summary = []
         students_data = []
         weeks = []
@@ -759,6 +786,7 @@ def admin_dashboard():
     return render_template(
         "admin.html",
         selected_grade=selected_grade,
+        students_by_grade=students_by_grade,
         grade_summary=grade_summary,
         students_data=students_data,
         weeks=weeks,
@@ -834,6 +862,25 @@ def add_week():
     )
     db.session.add(week)
     db.session.commit()
+
+    uploaded_videos = request.files.getlist("week_videos")
+    video_idx = 1
+    for vf in uploaded_videos:
+        if vf and vf.filename:
+            v_path = save_uploaded_file(vf, UPLOAD_VIDEOS, "/static/uploads/videos")
+            if v_path:
+                db.session.add(WeekContent(
+                    week_id=week.id,
+                    title=f"فيديو {video_idx}",
+                    section_key="explanation",
+                    content_type="video_upload",
+                    source_path=v_path,
+                    duration_or_notes="مرفوع من الجهاز",
+                    order_num=video_idx
+                ))
+                video_idx += 1
+
+    db.session.commit()
     flash(f"تم إضافة ({title}) لـ ({grade}) بنجاح.", "success")
     return redirect(url_for("admin_dashboard", grade=grade))
 
@@ -869,25 +916,26 @@ def add_content():
     week = db.session.get(Week, week_id)
     if not week:
         return redirect(url_for("admin_dashboard"))
+
     title = request.form.get("title", "").strip()
     section_key = request.form.get("section_key", "explanation").strip()
     if section_key not in dict(CONTENT_SECTIONS):
         section_key = "explanation"
-    content_type = request.form.get("content_type", "").strip()
+    content_type = (request.form.get("content_type") or "video_upload").strip()
     duration_or_notes = request.form.get("duration_or_notes", "").strip()
     order_num = request.form.get("order_num", 1, type=int)
+
+    existing_count = WeekContent.query.filter_by(week_id=week_id).count()
+    if not title:
+        title = f"فيديو {existing_count + 1}"
 
     source_path = ""
     if content_type == "video_upload":
         source_path = save_uploaded_file(request.files.get("media_file"), UPLOAD_VIDEOS, "/static/uploads/videos")
     elif content_type == "file_upload":
         source_path = save_uploaded_file(request.files.get("media_file"), UPLOAD_FILES, "/static/uploads/files")
-    else:
+    elif content_type in ("video_link", "file_link"):
         source_path = request.form.get("external_link", "").strip()
-
-    if not source_path:
-        flash("يرجى رفع الملف أو إدخال الرابط بشكل صحيح.", "danger")
-        return redirect(url_for("admin_dashboard", grade=week.grade))
 
     content = WeekContent(
         week_id=week_id,
@@ -900,7 +948,7 @@ def add_content():
     )
     db.session.add(content)
     db.session.commit()
-    flash("تم إضافة المحتوى داخل القسم المحدد بنجاح.", "success")
+    flash(f"تم إضافة ({title}) داخل القسم المحدد بنجاح.", "success")
     return redirect(url_for("admin_dashboard", grade=week.grade))
 
 
@@ -924,6 +972,10 @@ def add_exam():
     week_id = request.form.get("week_id", type=int)
     duration_minutes = request.form.get("duration_minutes", 20, type=int)
 
+    if not title or not grade:
+        flash("يرجى إدخال عنوان الاختبار واختيار الصف الدراسي.", "warning")
+        return redirect(url_for("admin_dashboard"))
+
     exam = Exam(
         title=title,
         grade=grade,
@@ -932,7 +984,7 @@ def add_exam():
     )
     db.session.add(exam)
     db.session.commit()
-    flash(f"تم إنشاء الامتحان ({title}) لـ ({grade}). أضف أسئلته الآن.", "success")
+    flash(f"تم إنشاء الاختبار ({title}) لـ ({grade}). أضف أسئلته الآن.", "success")
     return redirect(url_for("admin_dashboard", grade=grade))
 
 
@@ -961,7 +1013,7 @@ def add_question():
             correct_option=correct_option
         ))
         db.session.commit()
-        flash("تم إضافة السؤال للامتحان.", "success")
+        flash("تم إضافة السؤال للاختبار.", "success")
     return redirect(url_for("admin_dashboard", grade=exam.grade))
 
 
@@ -973,7 +1025,7 @@ def delete_exam(exam_id):
     if exam:
         db.session.delete(exam)
         db.session.commit()
-        flash("تم حذف الامتحان.", "info")
+        flash("تم حذف الاختبار.", "info")
     return redirect(url_for("admin_dashboard", grade=g))
 
 
@@ -984,7 +1036,7 @@ def toggle_student(student_id):
     if student:
         student.is_active = not student.is_active
         db.session.commit()
-        flash(f"تم تحديث حالة الطالب {student.full_name}.", "success")
+        flash(f"تم تحديث حالة الحساب ({student.full_name}).", "success")
         return redirect(url_for("admin_dashboard", grade=student.grade))
     return redirect(url_for("admin_dashboard"))
 
@@ -1068,7 +1120,7 @@ def add_announcement():
     if title and message:
         db.session.add(Announcement(title=title, message=message, grade=grade))
         db.session.commit()
-        flash("تم نشر الإشعار للطلاب بنجاح.", "success")
+        flash("تم نشر الإشعار للمتدربين بنجاح.", "success")
     return redirect(url_for("admin_dashboard", grade=grade))
 
 
@@ -1091,8 +1143,6 @@ def internal_error(error):
         pass
     return render_template("index.html"), 500
 
-
-# ===================== تهيئة قاعدة البيانات وحساب الإدارة =====================
 
 _db_initialized = False
 

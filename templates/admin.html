@@ -31,6 +31,24 @@
       border-color: #1677ff;
       box-shadow: none;
     }
+    .grade-toggle-btn {
+      background: #133157;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 12px 16px;
+      cursor: pointer;
+    }
+    .dev-credit-muted {
+      color: #9fb3c8;
+      font-size: 0.82rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(159, 179, 200, 0.16);
+    }
   </style>
 </head>
 <body>
@@ -55,26 +73,199 @@
       {% endif %}
     {% endwith %}
 
+    <!-- أحدث الحسابات المسجلة ببيانات التقديم الكاملة للقبول أو الإيقاف -->
     <div class="card-dark mb-4 border-info border-opacity-50">
-      <div class="d-flex justify-content-between align-items-center mb-2">
-        <h5 class="fw-bold text-info mb-0"><i class="bi bi-bell-fill me-1"></i> أحدث الحسابات المسجلة للطلاب</h5>
-        <span class="badge bg-info text-dark">آخر {{ recent_students|length }} حسابات</span>
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="fw-bold text-info mb-0"><i class="bi bi-bell-fill me-1"></i> أحدث الحسابات المقدمة (بيانات التقديم الكاملة)</h5>
+        <span class="badge bg-info text-dark">آخر {{ recent_students|length }} تقديمات</span>
       </div>
       {% if recent_students %}
-        <div class="row g-2">
+        <div class="row g-3">
           {% for st in recent_students %}
-            <div class="col-md-6 col-lg-4">
-              <div class="p-2 rounded-3 bg-dark border border-secondary border-opacity-25 small">
-                <div class="fw-bold">{{ st.full_name }} <span class="text-secondary">({{ st.grade or 'بدون صف' }})</span></div>
-                <div class="text-secondary">هاتف: {{ st.phone }} • الحالة: {% if st.is_active %}<span class="text-success">مفعّل</span>{% else %}<span class="text-warning">غير مفعّل</span>{% endif %}</div>
+            <div class="col-md-6">
+              <div class="p-3 rounded-3 bg-dark border border-secondary border-opacity-25 h-100 d-flex flex-column justify-content-between">
+                <div class="small">
+                  <div class="fw-bold fs-6 text-white mb-1">{{ st.full_name }}</div>
+                  <div class="mb-1"><strong>الصف:</strong> {{ st.grade or '-' }}</div>
+                  <div class="mb-1"><strong>هاتف الطالب:</strong> {{ st.phone }}</div>
+                  <div class="mb-1"><strong>هاتف ولي الأمر:</strong> {{ st.parent_phone or '-' }}</div>
+                  <div class="mb-2"><strong>المحافظة:</strong> {{ st.governorate or '-' }}</div>
+                </div>
+                <div class="d-flex justify-content-between align-items-center pt-2 border-top border-secondary border-opacity-25">
+                  <span>
+                    {% if st.is_active %}
+                      <span class="badge bg-success">مقبول</span>
+                    {% else %}
+                      <span class="badge bg-info text-dark">بانتظار القبول</span>
+                    {% endif %}
+                  </span>
+                  <form method="POST" action="{{ url_for('toggle_student', student_id=st.id) }}">
+                    <button type="submit" class="btn btn-sm {% if st.is_active %}btn-outline-light{% else %}btn-success{% endif %} fw-bold">
+                      {% if st.is_active %}إيقاف الحساب{% else %}قبول الحساب{% endif %}
+                    </button>
+                  </form>
+                </div>
               </div>
             </div>
           {% endfor %}
         </div>
       {% else %}
-        <div class="text-secondary small">لا توجد حسابات طلاب مسجلة بعد.</div>
+        <div class="text-secondary small">لا توجد حسابات مقدمة بعد.</div>
       {% endif %}
     </div>
+
+    <!-- مساحة كاملة لحسابات الطلاب متقسمة حسب كل صف دراسي (تفتح وتقفل لكل صف) -->
+    <div class="card-dark mb-4">
+      <h4 class="fw-bold mb-3"><i class="bi bi-people-fill text-info me-1"></i> حسابات الطلاب مقسمة حسب الصف الدراسي</h4>
+      <div class="d-grid gap-3">
+        {% for g in grades %}
+          {% set g_list = students_by_grade.get(g, []) %}
+          {% set collapse_id = 'gradeBox_' ~ loop.index %}
+          <div class="border border-secondary border-opacity-25 rounded-3 p-2">
+            <div class="d-flex justify-content-between align-items-center grade-toggle-btn" data-bs-toggle="collapse" data-bs-target="#{{ collapse_id }}" aria-expanded="false">
+              <div>
+                <span class="fw-bold">{{ g }}</span>
+                <span class="badge bg-info text-dark ms-2">{{ g_list|length }} طالب</span>
+              </div>
+              <span class="small text-info">فتح / إغلاق v</span>
+            </div>
+
+            <div id="{{ collapse_id }}" class="collapse mt-3">
+              {% if g_list %}
+                <div class="table-responsive">
+                  <table class="table table-dark table-hover align-middle mb-0 small">
+                    <thead>
+                      <tr>
+                        <th>اسم الطالب</th>
+                        <th>هاتف الطالب</th>
+                        <th>هاتف ولي الأمر</th>
+                        <th>المحافظة</th>
+                        <th>حالة الحساب</th>
+                        <th>حالة الطالب</th>
+                        <th>قبول / إيقاف</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for item in g_list %}
+                        {% set s = item.user %}
+                        <tr>
+                          <td class="fw-bold">{{ s.full_name }}</td>
+                          <td>{{ s.phone }}</td>
+                          <td>{{ s.parent_phone or '-' }}</td>
+                          <td>{{ s.governorate or '-' }}</td>
+                          <td>
+                            {% if s.is_active %}
+                              <span class="badge bg-success">مقبول</span>
+                            {% else %}
+                              <span class="badge bg-info text-dark">بانتظار القبول</span>
+                            {% endif %}
+                          </td>
+                          <td>
+                            <button type="button" class="btn btn-sm btn-primary fw-bold" data-bs-toggle="modal" data-bs-target="#studentStatusModal_{{ s.id }}">
+                              حالة الطالب ({{ item.level.overall }}%)
+                            </button>
+                          </td>
+                          <td>
+                            <form method="POST" action="{{ url_for('toggle_student', student_id=s.id) }}">
+                              <button type="submit" class="btn btn-sm {% if s.is_active %}btn-outline-light{% else %}btn-success{% endif %}">
+                                {% if s.is_active %}إيقاف{% else %}قبول{% endif %}
+                              </button>
+                            </form>
+                          </td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              {% else %}
+                <div class="text-secondary small p-2">لا يوجد طلاب مسجلون في {{ g }} حتى الآن.</div>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- نوافذ حالة الطالب التفصيلية (المذاكرة والفيديوهات والامتحانات والدرجات لمتابعة ولي الأمر) -->
+    {% for g in grades %}
+      {% for item in students_by_grade.get(g, []) %}
+        {% set s = item.user %}
+        {% set lvl = item.level %}
+        <div class="modal fade" id="studentStatusModal_{{ s.id }}" tabindex="-1" aria-hidden="true">
+          <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content bg-dark text-white border border-secondary">
+              <div class="modal-header border-secondary">
+                <h5 class="modal-title fw-bold text-info">حالة الطالب: {{ s.full_name }} ({{ s.grade }})</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body small">
+                <div class="row g-2 mb-3">
+                  <div class="col-6 col-md-3">
+                    <div class="p-2 rounded bg-black border border-secondary border-opacity-50">
+                      <div class="text-secondary">التقدير العام</div>
+                      <div class="fw-bold text-info mt-1">{{ lvl.label }} ({{ lvl.overall }}%)</div>
+                    </div>
+                  </div>
+                  <div class="col-6 col-md-3">
+                    <div class="p-2 rounded bg-black border border-secondary border-opacity-50">
+                      <div class="text-secondary">الفيديوهات</div>
+                      <div class="fw-bold text-success mt-1">{{ lvl.watched_count }} / {{ lvl.total_videos }} ({{ lvl.video_pct }}%)</div>
+                    </div>
+                  </div>
+                  <div class="col-6 col-md-3">
+                    <div class="p-2 rounded bg-black border border-secondary border-opacity-50">
+                      <div class="text-secondary">الامتحانات المحلولة</div>
+                      <div class="fw-bold text-info mt-1">{{ lvl.solved_exams }} / {{ lvl.total_exams }} ({{ lvl.exam_pct }}%)</div>
+                    </div>
+                  </div>
+                  <div class="col-6 col-md-3">
+                    <div class="p-2 rounded bg-black border border-secondary border-opacity-50">
+                      <div class="text-secondary">متوسط الدرجات</div>
+                      <div class="fw-bold text-primary mt-1">{{ lvl.avg_score }}%</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="mb-3 p-2 rounded bg-black border border-secondary border-opacity-25">
+                  <div><strong>هاتف الطالب:</strong> {{ s.phone }} • <strong>هاتف ولي الأمر:</strong> {{ s.parent_phone or '-' }} • <strong>المحافظة:</strong> {{ s.governorate or '-' }}</div>
+                </div>
+
+                <h6 class="fw-bold text-info mb-2">نتائج الامتحانات التفصيلية (لمتابعة ولي الأمر)</h6>
+                {% if lvl.exam_details %}
+                  <div class="table-responsive">
+                    <table class="table table-dark table-sm table-bordered mb-0">
+                      <thead>
+                        <tr>
+                          <th>اسم الامتحان</th>
+                          <th>الدرجة</th>
+                          <th>النسبة</th>
+                          <th>وقت التسليم</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for ed in lvl.exam_details %}
+                          <tr>
+                            <td>{{ ed.exam_title }}</td>
+                            <td>{{ ed.score }} / {{ ed.total }}</td>
+                            <td>{{ ed.percentage }}%</td>
+                            <td>{{ ed.submitted_at }}</td>
+                          </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                {% else %}
+                  <div class="text-secondary">لم يقم الطالب بحل أي امتحانات حتى الآن.</div>
+                {% endif %}
+              </div>
+              <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">إغلاق</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    {% endfor %}
 
     <div class="d-flex flex-wrap gap-2 mb-4">
       <a href="{{ url_for('admin_dashboard') }}" class="btn btn-sm {% if not selected_grade %}btn-primary{% else %}btn-outline-light{% endif %}">كل الصفوف</a>
@@ -84,7 +275,7 @@
     </div>
 
     <div class="card-dark mb-4">
-      <h4 class="fw-bold mb-3">إضافة باقة / أسبوع دراسي</h4>
+      <h4 class="fw-bold mb-3">إضافة باقة جديدة (مع رفع فيديوهات مباشرة بدون روابط)</h4>
       <form method="POST" action="{{ url_for('add_week') }}" enctype="multipart/form-data" class="row g-3">
         <div class="col-md-4">
           <label class="form-label">عنوان الباقة</label>
@@ -120,23 +311,25 @@
           </select>
         </div>
         <div class="col-md-6">
+          <label class="form-label">رفع فيديوهات من الجهاز مباشرة (فيديو 1، فيديو 2، فيديو 3... بدون روابط)</label>
+          <input type="file" name="week_videos" accept="video/*" multiple class="form-control" />
+        </div>
+        <div class="col-md-6">
           <label class="form-label">صورة غلاف الباقة (اختياري)</label>
           <input type="file" name="cover_image" accept="image/*" class="form-control" />
         </div>
-        <div class="col-md-6 d-flex align-items-end">
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" name="is_free" id="isFreeCheck" />
-            <label class="form-check-label" for="isFreeCheck">باقة مجانية لجميع طلاب الصف</label>
-          </div>
-        </div>
         <div class="col-12">
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" name="is_free" id="isFreeCheck" />
+            <label class="form-check-label" for="isFreeCheck">باقة مجانية لجميع طلاب الصف المقبولين</label>
+          </div>
           <button type="submit" class="btn btn-primary fw-bold px-4">حفظ الباقة</button>
         </div>
       </form>
     </div>
 
     <div class="card-dark mb-4">
-      <h4 class="fw-bold mb-3">إضافة محتوى داخل الباقة (الشرح / التطبيق التفاعلي / تسليم الواجب / الامتحان)</h4>
+      <h4 class="fw-bold mb-3">إضافة عنصر داخل التقسيمات (تقسيم الشرح / تقسيم التدريبات / تقسيم الاختبار)</h4>
       <form method="POST" action="{{ url_for('add_content') }}" enctype="multipart/form-data" class="row g-3">
         <div class="col-md-4">
           <label class="form-label">اختر الباقة</label>
@@ -147,7 +340,7 @@
           </select>
         </div>
         <div class="col-md-4">
-          <label class="form-label">القسم داخل المحاضرة</label>
+          <label class="form-label">التقسيمة</label>
           <select name="section_key" class="form-select" required>
             {% for key, label in content_sections %}
               <option value="{{ key }}">{{ label }}</option>
@@ -155,38 +348,125 @@
           </select>
         </div>
         <div class="col-md-4">
-          <label class="form-label">نوع المحتوى</label>
+          <label class="form-label">النوع</label>
           <select name="content_type" class="form-select" required>
-            <option value="video_link">رابط فيديو (يوتيوب / غيره)</option>
-            <option value="file_link">رابط ملف / واجب / امتحان خارجي</option>
-            <option value="video_upload">رفع ملف فيديو</option>
-            <option value="file_upload">رفع ملف (PDF / مستند)</option>
+            <option value="video_upload">فيديو من الجهاز (بدون رابط)</option>
+            <option value="file_upload">ملف من الجهاز (PDF / تدريب)</option>
+            <option value="video_link">رابط فيديو خارجي (اختياري)</option>
+            <option value="file_link">رابط ملف خارجي (اختياري)</option>
           </select>
         </div>
         <div class="col-md-4">
-          <label class="form-label">عنوان العنصر</label>
-          <input type="text" name="title" class="form-control" placeholder="مثال: شرح الدرس الأول" required />
+          <label class="form-label">عنوان العنصر (مثال: فيديو 1، فيديو 2، تدريب 1)</label>
+          <input type="text" name="title" class="form-control" placeholder="فيديو 1" />
         </div>
         <div class="col-md-4">
-          <label class="form-label">الرابط (إن لم ترفع ملفاً)</label>
-          <input type="text" name="external_link" class="form-control" placeholder="https://..." />
-        </div>
-        <div class="col-md-4">
-          <label class="form-label">رفع ملف (اختياري)</label>
+          <label class="form-label">رفع فيديو أو ملف من الجهاز</label>
           <input type="file" name="media_file" class="form-control" />
         </div>
+        <div class="col-md-4">
+          <label class="form-label">رابط خارجي (اختياري إن لم ترفع من الجهاز)</label>
+          <input type="text" name="external_link" class="form-control" placeholder="اختياري" />
+        </div>
         <div class="col-md-8">
-          <label class="form-label">ملاحظات أو مدة (اختياري)</label>
+          <label class="form-label">ملاحظات أو وصف مختصر (اختياري)</label>
           <input type="text" name="duration_or_notes" class="form-control" />
         </div>
         <div class="col-md-4">
-          <label class="form-label">ترتيب العرض</label>
+          <label class="form-label">الترتيب</label>
           <input type="number" name="order_num" class="form-control" value="1" />
         </div>
         <div class="col-12">
-          <button type="submit" class="btn btn-success fw-bold px-4">إضافة المحتوى</button>
+          <button type="submit" class="btn btn-success fw-bold px-4">إضافة العنصر</button>
         </div>
       </form>
+    </div>
+
+    <div class="card-dark mb-4">
+      <h4 class="fw-bold mb-3">إضافة اختبار جديد</h4>
+      <form method="POST" action="{{ url_for('add_exam') }}" class="row g-3 mb-4">
+        <div class="col-md-4">
+          <label class="form-label">عنوان الاختبار</label>
+          <input type="text" name="title" class="form-control" placeholder="مثال: اختبار على الوحدة الأولى" required />
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">الصف الدراسي</label>
+          <select name="grade" class="form-select" required>
+            {% for g in grades %}
+              <option value="{{ g }}" {% if selected_grade == g %}selected{% endif %}>{{ g }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">المدة (دقيقة)</label>
+          <input type="number" name="duration_minutes" class="form-control" value="20" min="1" />
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <button type="submit" class="btn btn-primary fw-bold w-100">إضافة اختبار</button>
+        </div>
+      </form>
+
+      {% if all_exams %}
+        <hr class="border-secondary border-opacity-25" />
+        <h5 class="fw-bold mb-3">إضافة سؤال لاختبار موجود</h5>
+        <form method="POST" action="{{ url_for('add_question') }}" class="row g-3 mb-3">
+          <div class="col-md-6">
+            <label class="form-label">اختر الاختبار</label>
+            <select name="exam_id" class="form-select" required>
+              {% for ex in all_exams %}
+                <option value="{{ ex.id }}">{{ ex.grade }} — {{ ex.title }} ({{ ex.questions|length }} سؤال)</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">الاختيار الصحيح</label>
+            <select name="correct_option" class="form-select">
+              <option value="A">أ</option>
+              <option value="B">ب</option>
+              <option value="C">ج</option>
+              <option value="D">د</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">نص السؤال</label>
+            <input type="text" name="question_text" class="form-control" required />
+          </div>
+          <div class="col-md-3"><input type="text" name="option_a" class="form-control" placeholder="الاختيار أ" required /></div>
+          <div class="col-md-3"><input type="text" name="option_b" class="form-control" placeholder="الاختيار ب" required /></div>
+          <div class="col-md-3"><input type="text" name="option_c" class="form-control" placeholder="الاختيار ج" required /></div>
+          <div class="col-md-3"><input type="text" name="option_d" class="form-control" placeholder="الاختيار د" required /></div>
+          <div class="col-12">
+            <button type="submit" class="btn btn-sm btn-info text-dark fw-bold px-4">إضافة السؤال</button>
+          </div>
+        </form>
+
+        <div class="table-responsive">
+          <table class="table table-dark table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th>الاختبار</th>
+                <th>الصف</th>
+                <th>عدد الأسئلة</th>
+                <th>حذف</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for ex in exams %}
+                <tr>
+                  <td class="fw-bold">{{ ex.title }}</td>
+                  <td>{{ ex.grade }}</td>
+                  <td>{{ ex.questions|length }}</td>
+                  <td>
+                    <form method="POST" action="{{ url_for('delete_exam', exam_id=ex.id) }}" class="d-inline">
+                      <button type="submit" class="btn btn-sm btn-danger py-0 px-2">حذف</button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
     </div>
 
     <div class="card-dark mb-4">
@@ -213,7 +493,7 @@
                 </td>
                 <td class="d-flex gap-2">
                   <form method="POST" action="{{ url_for('toggle_week', week_id=w.id) }}">
-                    <button type="submit" class="btn btn-sm btn-warning text-dark">تبديل النشر</button>
+                    <button type="submit" class="btn btn-sm btn-primary">تبديل النشر</button>
                   </form>
                   <form method="POST" action="{{ url_for('delete_week', week_id=w.id) }}" onsubmit="return confirm('تأكيد حذف الباقة؟');">
                     <button type="submit" class="btn btn-sm btn-danger">حذف</button>
@@ -222,47 +502,6 @@
               </tr>
             {% else %}
               <tr><td colspan="5" class="text-center text-secondary">لا توجد باقات حالياً.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="card-dark mb-4">
-      <h4 class="fw-bold mb-3">الطلاب المسجلون ({{ students_data|length }})</h4>
-      <div class="table-responsive">
-        <table class="table table-dark table-hover align-middle">
-          <thead>
-            <tr>
-              <th>اسم الطالب</th>
-              <th>هاتف الطالب</th>
-              <th>هاتف ولي الأمر</th>
-              <th>الصف</th>
-              <th>المحافظة</th>
-              <th>المستوى</th>
-              <th>الحالة</th>
-              <th>تفعيل / إيقاف</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for item in students_data %}
-              {% set s = item.user %}
-              <tr>
-                <td class="fw-bold">{{ s.full_name }}</td>
-                <td>{{ s.phone }}</td>
-                <td>{{ s.parent_phone or '-' }}</td>
-                <td>{{ s.grade or '-' }}</td>
-                <td>{{ s.governorate }}</td>
-                <td><span class="badge {{ item.level.badge_class }}">{{ item.level.label }} ({{ item.level.overall }}%)</span></td>
-                <td>{% if s.is_active %}<span class="badge bg-success">مفعّل</span>{% else %}<span class="badge bg-secondary">غير مفعّل</span>{% endif %}</td>
-                <td>
-                  <form method="POST" action="{{ url_for('toggle_student', student_id=s.id) }}">
-                    <button type="submit" class="btn btn-sm btn-outline-info">تغيير الحالة</button>
-                  </form>
-                </td>
-              </tr>
-            {% else %}
-              <tr><td colspan="8" class="text-center text-secondary">لا يوجد طلاب مسجلون بعد.</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -448,8 +687,17 @@
         </div>
       </form>
     </div>
+
+    <div class="text-center mt-5">
+      <div class="mb-1" style="color:#9fb3c8;font-size:0.8rem;">جميع الحقوق محفوظة © 2026</div>
+      <div class="dev-credit-muted">
+        <i class="bi bi-code-slash"></i>
+        <span>{{ developer_credit }}</span>
+      </div>
+    </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
     setTimeout(function () {
       document.querySelectorAll(".alert").forEach(function (el) {

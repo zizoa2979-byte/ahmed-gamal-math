@@ -3,72 +3,252 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{{ exam.title }} | {{ settings.platform_name }}</title>
+  <title>{{ exam.title }} - {{ settings.teacher_name if settings.teacher_name and settings.teacher_name != 'None' else 'مستر / أحمد جمال' }}</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css" rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
   <style>
-    * { font-family: 'Cairo', sans-serif; }
-    body { background-color: #090f1d; color: #f8fafc; min-height: 100vh; }
-    .card-box {
-      background-color: #111b30;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 20px;
-      padding: 24px;
+    body {
+      background-color: #071324;
+      color: #ffffff;
+      font-family: system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding-bottom: 40px;
     }
-    .btn-gold {
-      background: linear-gradient(135deg, #f59e0b, #d97706);
-      color: #090f1d;
-      font-weight: 800;
-      border: none;
+    .exam-card {
+      background: #0e223d;
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 18px;
+      padding: 22px;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+    }
+    .q-box {
+      background: #09182c;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 16px;
+    }
+    .option-label {
+      display: flex;
+      align-items: center;
+      background: #0e223d;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 10px;
+      padding: 10px 14px;
+      cursor: pointer;
+      margin-bottom: 8px;
+      transition: border-color 0.2s ease, background-color 0.2s ease;
+    }
+    .option-label:hover,
+    .option-label:has(input:checked) {
+      border-color: #1677ff;
+      background: #132d50;
+    }
+    .timer-box {
+      background: #09182c;
+      border: 1px solid rgba(22, 119, 255, 0.35);
       border-radius: 12px;
-      padding: 12px 24px;
+      padding: 8px 14px;
+      min-width: 110px;
+      text-align: center;
+    }
+    .dev-credit-muted {
+      color: #9fb3c8;
+      font-size: 0.82rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(159, 179, 200, 0.16);
     }
   </style>
 </head>
 <body>
-  <div class="container py-4" style="max-width: 820px;">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-      <div>
-        <h4 class="fw-bold mb-1">{{ exam.title }}</h4>
-        <small class="text-secondary">{{ exam.grade }} • {{ exam.questions|length }} سؤال</small>
-      </div>
-      <a href="{{ url_for('student_dashboard') }}" class="btn btn-outline-light btn-sm rounded-3">العودة لحسابي</a>
+  <nav class="navbar navbar-dark bg-dark border-bottom border-secondary border-opacity-25 px-3 mb-4">
+    <div class="container">
+      <span class="navbar-brand fw-bold text-info mb-0">
+        <i class="bi bi-journal-check me-1"></i> {{ exam.title }}
+      </span>
+      <a href="{{ url_for('student_dashboard') }}" class="btn btn-sm btn-outline-light">
+        <i class="bi bi-arrow-right me-1"></i> رجوع لصفحتي
+      </a>
+    </div>
+  </nav>
+
+  <main class="container flex-grow-1" style="max-width: 820px;">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div id="flashContainer" class="mb-3">
+          {% for cat, msg in messages %}
+            <div class="alert alert-{{ cat }} rounded-3">{{ msg }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <div id="unansweredAlert" class="alert alert-warning rounded-3 d-none">
+      يرجى اختيار إجابة واحدة لكل سؤال قبل التسليم.
     </div>
 
-    {% if exam.questions %}
-      <form method="POST" action="{{ url_for('take_exam', exam_id=exam.id) }}">
-        {% for q in exam.questions %}
-          <div class="card-box mb-3">
-            <div class="fw-bold mb-3">{{ loop.index }}. {{ q.question_text }}</div>
-            <div class="form-check mb-2">
-              <input class="form-check-input" type="radio" name="q_{{ q.id }}" value="A" id="q{{ q.id }}a" required />
-              <label class="form-check-label" for="q{{ q.id }}a">{{ q.option_a }}</label>
-            </div>
-            <div class="form-check mb-2">
-              <input class="form-check-input" type="radio" name="q_{{ q.id }}" value="B" id="q{{ q.id }}b" />
-              <label class="form-check-label" for="q{{ q.id }}b">{{ q.option_b }}</label>
-            </div>
-            <div class="form-check mb-2">
-              <input class="form-check-input" type="radio" name="q_{{ q.id }}" value="C" id="q{{ q.id }}c" />
-              <label class="form-check-label" for="q{{ q.id }}c">{{ q.option_c }}</label>
-            </div>
-            <div class="form-check">
-              <input class="form-check-input" type="radio" name="q_{{ q.id }}" value="D" id="q{{ q.id }}d" />
-              <label class="form-check-label" for="q{{ q.id }}d">{{ q.option_d }}</label>
-            </div>
+    <div class="exam-card mb-4">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 pb-3 mb-4 border-bottom border-secondary border-opacity-25">
+        <div>
+          <span class="badge bg-info text-dark mb-1">{{ exam.grade }}</span>
+          <h1 class="h4 fw-bold mb-1">{{ exam.title }}</h1>
+          <div class="small text-secondary">
+            عدد الأسئلة: {{ exam.questions|length }} • المدة: {{ exam.duration_minutes or 20 }} دقيقة
           </div>
-        {% endfor %}
-        <button type="submit" class="btn btn-gold w-100">تسليم الامتحان وحساب الدرجة</button>
-      </form>
-    {% else %}
-      <div class="card-box text-center py-5">
-        <p class="text-secondary mb-0">لا توجد أسئلة مضافة لهذا الامتحان بعد.</p>
-      </div>
-    {% endif %}
+        </div>
 
-    <footer class="text-center py-4 mt-4 text-warning fw-bold small">
-      تطوير المهندس عبدالعزيز أمير
-    </footer>
-  </div>
+        <div class="timer-box" id="timerBox" data-duration="{{ exam.duration_minutes or 20 }}">
+          <div class="small text-secondary">الوقت المتبقي</div>
+          <div class="fs-5 fw-bold text-info" id="timerDisplay">20:00</div>
+        </div>
+      </div>
+
+      {% if exam.questions %}
+        <form id="examForm" method="POST" action="{{ url_for('take_exam', exam_id=exam.id) }}" class="d-grid gap-3">
+          {% for q in exam.questions %}
+            <div class="q-box question-item" data-qid="{{ q.id }}">
+              <div class="fw-bold mb-3">{{ loop.index }}. {{ q.question_text }}</div>
+
+              <label class="option-label">
+                <input type="radio" name="q_{{ q.id }}" value="A" class="form-check-input ms-2 me-0" />
+                <span>أ) {{ q.option_a }}</span>
+              </label>
+
+              <label class="option-label">
+                <input type="radio" name="q_{{ q.id }}" value="B" class="form-check-input ms-2 me-0" />
+                <span>ب) {{ q.option_b }}</span>
+              </label>
+
+              <label class="option-label">
+                <input type="radio" name="q_{{ q.id }}" value="C" class="form-check-input ms-2 me-0" />
+                <span>ج) {{ q.option_c }}</span>
+              </label>
+
+              <label class="option-label mb-0">
+                <input type="radio" name="q_{{ q.id }}" value="D" class="form-check-input ms-2 me-0" />
+                <span>د) {{ q.option_d }}</span>
+              </label>
+            </div>
+          {% endfor %}
+
+          <button type="submit" id="submitExamBtn" class="btn btn-success btn-lg fw-bold rounded-3 mt-2">
+            <i class="bi bi-check2-circle me-1"></i> تسليم الإجابات وعرض النتيجة
+          </button>
+        </form>
+      {% else %}
+        <div class="alert alert-info mb-0">
+          لم يتم إضافة أسئلة لهذا الاختبار بعد.
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="text-center mt-5">
+      <div class="mb-1" style="color:#9fb3c8;font-size:0.8rem;">جميع الحقوق محفوظة © 2026</div>
+      <div class="dev-credit-muted">
+        <i class="bi bi-code-slash"></i>
+        <span>{{ developer_credit }}</span>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    (function () {
+      const formEl = document.getElementById("examForm");
+      const timerBox = document.getElementById("timerBox");
+      const timerEl = document.getElementById("timerDisplay");
+      const alertEl = document.getElementById("unansweredAlert");
+      const submitBtn = document.getElementById("submitExamBtn");
+
+      if (!formEl) return;
+
+      let isSubmitting = false;
+      const rawDuration = timerBox ? parseInt(timerBox.dataset.duration || "20", 10) : 20;
+      const durationMinutes = Number.isNaN(rawDuration) ? 20 : Math.max(1, rawDuration);
+      let totalSeconds = durationMinutes * 60;
+
+      function formatTime(sec) {
+        const safeSec = Math.max(0, sec);
+        const mins = Math.floor(safeSec / 60);
+        const remSecs = safeSec % 60;
+        return String(mins).padStart(2, "0") + ":" + String(remSecs).padStart(2, "0");
+      }
+
+      if (timerEl) {
+        timerEl.textContent = formatTime(totalSeconds);
+      }
+
+      function allQuestionsAnswered() {
+        const questionBoxes = formEl.querySelectorAll(".question-item");
+        for (const box of questionBoxes) {
+          const checked = box.querySelector('input[type="radio"]:checked');
+          if (!checked) {
+            return false;
+          }
+        }
+        return true;
+      }
+
+      function submitFormOnce(forceSubmit) {
+        if (isSubmitting) return;
+        if (!forceSubmit && !allQuestionsAnswered()) {
+          if (alertEl) {
+            alertEl.classList.remove("d-none");
+            alertEl.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+          return;
+        }
+        isSubmitting = true;
+        if (submitBtn) {
+          submitBtn.disabled = true;
+        }
+        formEl.submit();
+      }
+
+      formEl.addEventListener("change", function () {
+        if (alertEl && allQuestionsAnswered()) {
+          alertEl.classList.add("d-none");
+        }
+      });
+
+      formEl.addEventListener("submit", function (e) {
+        if (isSubmitting) return;
+        e.preventDefault();
+        submitFormOnce(false);
+      });
+
+      const countdown = setInterval(function () {
+        if (isSubmitting) {
+          clearInterval(countdown);
+          return;
+        }
+        totalSeconds -= 1;
+        if (timerEl) {
+          timerEl.textContent = formatTime(totalSeconds);
+          if (totalSeconds <= 60) {
+            timerEl.classList.remove("text-info");
+            timerEl.classList.add("text-danger");
+          }
+        }
+        if (totalSeconds <= 0) {
+          clearInterval(countdown);
+          submitFormOnce(true);
+        }
+      }, 1000);
+
+      setTimeout(function () {
+        document.querySelectorAll("#flashContainer .alert").forEach(function (el) {
+          el.style.transition = "opacity 0.4s ease";
+          el.style.opacity = "0";
+          setTimeout(function () { el.remove(); }, 400);
+        });
+      }, 5000);
+    })();
+  </script>
 </body>
 </html>
