@@ -603,10 +603,15 @@ def auth():
 
 @app.route("/logout")
 def logout():
-    session.clear()
+    try:
+        session.clear()
+    except Exception:
+        pass
     resp = redirect(url_for("index"))
-    resp.delete_cookie(app.session_cookie_name)
-    flash("تم تسجيل الخروج بنجاح.", "info")
+    try:
+        resp.delete_cookie(app.session_cookie_name)
+    except Exception:
+        pass
     return resp
 
 
@@ -877,16 +882,32 @@ def take_exam(exam_id):
 @app.route("/admin")
 @admin_required
 def admin_dashboard():
-    selected_grade = request.args.get("grade", "").strip()
+    selected_grade = (request.args.get("grade") or "").strip()
     show_login_modal = bool(session.pop("login_success_modal", False))
 
+    all_students_raw = []
+    pending_students = []
+    students_by_grade = {g: [] for g in GRADES}
+    students_data = []
+    weeks = []
+    all_weeks = []
+    exams = []
+    all_exams = []
+    exams_map = {}
+    codes = []
+    centers = []
+    announcements = []
+    exam_results = []
+
     try:
-        all_students_raw = User.query.filter(User.role != "admin").order_by(User.created_at.desc()).all()
-        pending_students = [s for s in all_students_raw if not s.is_active]
+        all_students_raw = (
+            User.query.filter((User.role != "admin") | (User.role.is_(None)))
+            .order_by(User.id.desc())
+            .all()
+        )
+        pending_students = [s for s in all_students_raw if not bool(s.is_active)]
 
-        students_by_grade = {}
         matched_ids = set()
-
         for g in GRADES:
             g_students_raw = [s for s in all_students_raw if (s.grade or "").strip() == g]
             for s in g_students_raw:
@@ -902,42 +923,30 @@ def admin_dashboard():
         if selected_grade:
             students_raw = [s for s in all_students_raw if (s.grade or "").strip() == selected_grade]
             weeks = Week.query.filter_by(grade=selected_grade).order_by(Week.order_num.asc()).all()
-            exams = Exam.query.filter_by(grade=selected_grade).order_by(Exam.created_at.desc()).all()
+            exams = Exam.query.filter_by(grade=selected_grade).order_by(Exam.id.desc()).all()
         else:
             students_raw = all_students_raw
             weeks = Week.query.order_by(Week.order_num.asc()).all()
-            exams = Exam.query.order_by(Exam.created_at.desc()).all()
+            exams = Exam.query.order_by(Exam.id.desc()).all()
 
         students_data = [{"user": s, "level": evaluate_student_level(s)} for s in students_raw]
         all_weeks = Week.query.order_by(Week.order_num.asc()).all()
-        all_exams = Exam.query.order_by(Exam.created_at.desc()).all()
+        all_exams = Exam.query.order_by(Exam.id.desc()).all()
         exams_map = {e.id: e.title for e in all_exams}
-        codes = AccessCode.query.order_by(AccessCode.created_at.desc()).limit(100).all()
-        centers = CenterBranch.query.order_by(CenterBranch.created_at.desc()).all()
-        announcements = Announcement.query.order_by(Announcement.created_at.desc()).limit(30).all()
+        codes = AccessCode.query.order_by(AccessCode.id.desc()).limit(100).all()
+        centers = CenterBranch.query.order_by(CenterBranch.id.desc()).all()
+        announcements = Announcement.query.order_by(Announcement.id.desc()).limit(30).all()
 
         results_query = ExamResult.query.join(User)
         if selected_grade:
             results_query = results_query.filter(User.grade == selected_grade)
-        exam_results = results_query.order_by(ExamResult.submitted_at.desc()).all()
+        exam_results = results_query.order_by(ExamResult.id.desc()).all()
     except Exception as exc:
         try:
             db.session.rollback()
         except Exception:
             pass
-        flash(f"حدث تنبيه أثناء تحميل بعض بيانات الإدارة: {exc}", "warning")
-        pending_students = []
-        students_by_grade = {g: [] for g in GRADES}
-        students_data = []
-        weeks = []
-        all_weeks = []
-        exams = []
-        all_exams = []
-        exams_map = {}
-        codes = []
-        centers = []
-        announcements = []
-        exam_results = []
+        flash(f"تنبيه أثناء تحميل بيانات الإدارة: {exc}", "warning")
 
     return render_template(
         "admin.html",
