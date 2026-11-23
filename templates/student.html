@@ -3,285 +3,452 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>حساب الطالب | {{ settings.platform_name }}</title>
+  <title>صفحة الطالب - {{ settings.teacher_name }}</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css" rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
   <style>
-    * { font-family: 'Cairo', sans-serif; }
     body {
-      background-color: #090f1d;
-      color: #f8fafc;
-      min-height: 100vh;
+      background-color: #071324;
+      color: #fff;
+      font-family: system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
+      padding-bottom: 85px;
     }
-    .navbar {
-      background: #050912;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    .top-nav {
+      background: #2ea043;
+      padding: 10px 16px;
+      position: sticky;
+      top: 0;
+      z-index: 900;
     }
-    .card-box {
-      background-color: #111b30;
+    .panel-card {
+      background: #0e223d;
       border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 20px;
-      padding: 22px;
+      border-radius: 18px;
+      padding: 18px;
+    }
+    .stat-box {
+      background: #0b1a2f;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 16px;
+      height: 100%;
+    }
+    .package-card {
+      background: #0e223d;
+      border: 1px solid rgba(22, 119, 255, 0.35);
+      border-radius: 18px;
+      overflow: hidden;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    .locked-banner {
+      background: rgba(220, 53, 69, 0.16);
+      border: 1px solid rgba(220, 53, 69, 0.55);
+      color: #ffb3ba;
+      border-radius: 14px;
+      padding: 14px;
+    }
+    .sec-header {
+      background: #133157;
+      border-radius: 12px;
+      padding: 10px 14px;
+      cursor: pointer;
+    }
+    .content-row {
+      background: #081526;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+      padding: 10px 14px;
     }
     .form-control {
-      background-color: #090f1d;
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      background-color: #071324;
+      border-color: rgba(255, 255, 255, 0.16);
       color: #fff;
       border-radius: 12px;
     }
     .form-control:focus {
-      background-color: #090f1d;
+      background-color: #071324;
       color: #fff;
-      border-color: #f59e0b;
+      border-color: #1677ff;
       box-shadow: none;
     }
-    .btn-gold {
-      background: linear-gradient(135deg, #f59e0b, #d97706);
-      color: #090f1d;
-      font-weight: 800;
-      border: none;
-      border-radius: 12px;
-    }
-    .btn-gold:hover { color: #090f1d; opacity: 0.92; }
-    .table-dark {
-      --bs-table-bg: #090f1d;
-      --bs-table-color: #f8fafc;
-      --bs-table-border-color: rgba(255, 255, 255, 0.08);
+    .wa-fab {
+      position: fixed;
+      bottom: 18px;
+      left: 18px;
+      z-index: 950;
+      background: #1677ff;
+      color: #fff;
+      border-radius: 16px;
+      padding: 10px 16px;
+      text-decoration: none;
+      font-weight: 700;
+      box-shadow: 0 8px 20px rgba(22, 119, 255, 0.4);
     }
   </style>
 </head>
 <body>
+  <nav class="top-nav">
+    <div class="container d-flex justify-content-between align-items-center gap-2">
+      <div class="dropdown">
+        <button class="btn btn-dark btn-sm rounded-pill px-3 dropdown-toggle d-flex align-items-center gap-2" type="button" data-bs-toggle="dropdown">
+          <i class="bi bi-person-circle"></i>
+          <span>{{ user.full_name }}</span>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-dark text-end">
+          <li class="dropdown-header text-info">أهلاً {{ user.full_name }}</li>
+          <li><a class="dropdown-item" href="{{ url_for('student_dashboard', tab='profile') }}"><i class="bi bi-person me-1"></i> حسابي</a></li>
+          <li><a class="dropdown-item" href="{{ url_for('student_dashboard', tab='subscriptions') }}"><i class="bi bi-collection-play me-1"></i> اشتراكاتي</a></li>
+          <li><a class="dropdown-item" href="{{ url_for('student_dashboard', tab='notifications') }}"><i class="bi bi-bell me-1"></i> الإشعارات</a></li>
+          <li><hr class="dropdown-divider" /></li>
+          <li><a class="dropdown-item text-danger" href="{{ url_for('logout') }}"><i class="bi bi-box-arrow-right me-1"></i> تسجيل خروج</a></li>
+        </ul>
+      </div>
 
-  <nav class="navbar navbar-dark py-3">
-    <div class="container d-flex justify-content-between align-items-center">
-      <a class="navbar-brand fw-bold text-white" href="{{ url_for('index') }}">
-        {{ settings.platform_name }}
-      </a>
-      <div class="d-flex gap-2">
-        <a href="{{ url_for('index') }}" class="btn btn-outline-light btn-sm rounded-3">الرئيسية</a>
-        <a href="{{ url_for('logout') }}" class="btn btn-danger btn-sm rounded-3">خروج</a>
+      <span class="fw-bold text-white small d-none d-md-inline">{{ user.grade }}</span>
+
+      <div class="d-flex align-items-center gap-2">
+        <a href="{{ url_for('student_dashboard') }}" class="btn btn-dark btn-sm rounded-3">الباقات</a>
+        <a href="{{ url_for('index') }}" class="btn btn-dark btn-sm rounded-3"><i class="bi bi-house"></i></a>
       </div>
     </div>
   </nav>
 
-  <div class="container py-4">
+  <div class="container mt-3">
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
-        {% for category, msg in messages %}
-          <div class="alert alert-{{ category }} alert-dismissible fade show rounded-3" role="alert">
-            {{ msg }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-          </div>
+        {% for cat, msg in messages %}
+          <div class="alert alert-{{ cat }} rounded-3">{{ msg }}</div>
         {% endfor %}
       {% endif %}
     {% endwith %}
 
-    <div class="card-box mb-4" style="border-color: rgba(245, 158, 11, 0.3);">
-      <div class="row align-items-center g-4">
-        <div class="col-lg-6">
-          <h4 class="fw-bold mb-1">أهلاً بك يا {{ user.full_name }}</h4>
-          <p class="text-secondary mb-2">{{ user.grade }} • ولي الأمر: {{ user.parent_name }}</p>
-          <div class="d-flex align-items-center gap-2 flex-wrap">
-            <span class="text-secondary small">مستواك الحالي:</span>
-            <span class="badge {{ level_info.badge_class }} fs-6 px-3 py-2">{{ level_info.label }}</span>
-            <span class="badge bg-dark border border-secondary text-light px-3 py-2">التقييم العام: {{ level_info.overall }}%</span>
-          </div>
-        </div>
-        <div class="col-lg-6">
-          <div class="row g-2 text-center">
-            <div class="col-4">
-              <div class="p-3 rounded-3 bg-dark">
-                <div class="fw-bold text-warning">{{ level_info.watched_count }} / {{ level_info.total_videos }}</div>
-                <small class="text-secondary">فيديوهات تمت مشاهدتها</small>
-              </div>
-            </div>
-            <div class="col-4">
-              <div class="p-3 rounded-3 bg-dark">
-                <div class="fw-bold text-info">{{ level_info.solved_exams }} / {{ level_info.total_exams }}</div>
-                <small class="text-secondary">امتحانات تم حلها</small>
-              </div>
-            </div>
-            <div class="col-4">
-              <div class="p-3 rounded-3 bg-dark">
-                <div class="fw-bold text-success">{{ level_info.avg_score }}%</div>
-                <small class="text-secondary">متوسط الدرجات</small>
-              </div>
-            </div>
-          </div>
-        </div>
+    <!-- تبويبات سريعة للمحاور المطلوبة -->
+    <div class="d-flex flex-wrap gap-2 mb-4">
+      <a href="{{ url_for('student_dashboard') }}" class="btn btn-sm {% if tab == 'overview' and not active_week %}btn-primary{% else %}btn-outline-light{% endif %} rounded-pill px-3">الباقات والتقدم</a>
+      <a href="{{ url_for('student_dashboard', tab='subscriptions') }}" class="btn btn-sm {% if tab == 'subscriptions' %}btn-primary{% else %}btn-outline-light{% endif %} rounded-pill px-3">اشتراكاتي</a>
+      <a href="{{ url_for('student_dashboard', tab='schedule') }}" class="btn btn-sm {% if tab == 'schedule' %}btn-primary{% else %}btn-outline-light{% endif %} rounded-pill px-3">تفاصيل محاضراتي</a>
+      <a href="{{ url_for('student_dashboard', tab='centers') }}" class="btn btn-sm {% if tab == 'centers' %}btn-primary{% else %}btn-outline-light{% endif %} rounded-pill px-3">المراكز والفروع</a>
+      <a href="{{ url_for('student_dashboard', tab='notifications') }}" class="btn btn-sm {% if tab == 'notifications' %}btn-primary{% else %}btn-outline-light{% endif %} rounded-pill px-3">الإشعارات</a>
+      <a href="{{ url_for('student_dashboard', tab='profile') }}" class="btn btn-sm {% if tab == 'profile' %}btn-primary{% else %}btn-outline-light{% endif %} rounded-pill px-3">حسابي</a>
+    </div>
+
+    {% if tab == 'profile' %}
+      <div class="panel-card">
+        <h4 class="fw-bold mb-3">بيانات حسابي</h4>
+        <p class="mb-2"><strong>الاسم بالكامل:</strong> {{ user.full_name }}</p>
+        <p class="mb-2"><strong>رقم هاتف الطالب:</strong> {{ user.phone }}</p>
+        <p class="mb-2"><strong>الصف الدراسي:</strong> {{ user.grade }}</p>
+        <p class="mb-2"><strong>رقم ولي الأمر:</strong> {{ user.parent_phone or 'غير مسجل' }}</p>
+        <p class="mb-2"><strong>المحافظة:</strong> {{ user.governorate }}</p>
+        <p class="mb-0"><strong>حالة الحساب:</strong> {% if user.is_active %}<span class="badge bg-success">مفعّل</span>{% else %}<span class="badge bg-warning text-dark">بانتظار التفعيل</span>{% endif %}</p>
       </div>
-    </div>
 
-    <div class="card-box mb-4">
-      <h6 class="fw-bold mb-2"><i class="fa-solid fa-key text-warning me-1"></i> تفعيل كود اشتراك</h6>
-      <form method="POST" action="{{ url_for('redeem_code') }}" class="row g-2">
-        <div class="col-sm-8 col-md-9">
-          <input type="text" name="code" class="form-control" placeholder="أدخل كود التفعيل هنا" required />
-        </div>
-        <div class="col-sm-4 col-md-3">
-          <button type="submit" class="btn btn-gold w-100">تفعيل الكود</button>
-        </div>
-      </form>
-    </div>
-
-    {% if active_week %}
-      <div class="card-box mb-4">
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-          <h4 class="fw-bold mb-0">{{ active_week.title }}</h4>
-          <a href="{{ url_for('student_dashboard') }}" class="btn btn-outline-light btn-sm rounded-3">إغلاق الدرس</a>
-        </div>
-
-        {% if can_access %}
-          {% if active_week.contents %}
-            <div class="row g-4">
-              {% for c in active_week.contents %}
-                <div class="col-12">
-                  <div class="p-3 rounded-3 bg-dark border border-secondary">
-                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
-                      <div>
-                        <h6 class="fw-bold mb-0">{{ c.title }}</h6>
-                        {% if c.duration_or_notes %}
-                          <small class="text-secondary">{{ c.duration_or_notes }}</small>
-                        {% endif %}
-                      </div>
-                      <div class="d-flex align-items-center gap-2">
-                        {% if c.id in watched_ids %}
-                          <span class="badge bg-success">تمت المشاهدة</span>
-                        {% else %}
-                          <form method="POST" action="{{ url_for('mark_watched', content_id=c.id) }}">
-                            <button type="submit" class="btn btn-sm btn-outline-warning rounded-3">تحديد كمشاهد</button>
-                          </form>
-                        {% endif %}
-                      </div>
-                    </div>
-
-                    {% if c.content_type == 'video_upload' %}
-                      <video controls class="w-100 rounded-3 mt-2" style="max-height: 440px;">
-                        <source src="{{ c.source_path }}" />
-                      </video>
-                    {% elif c.content_type == 'video_link' %}
-                      {% set embed = format_embed_url(c.source_path) %}
-                      {% if 'embed' in embed or 'preview' in embed %}
-                        <div class="ratio ratio-16x9 mt-2">
-                          <iframe src="{{ embed }}" allowfullscreen class="rounded-3"></iframe>
-                        </div>
-                      {% else %}
-                        <a href="{{ c.source_path }}" target="_blank" class="btn btn-gold btn-sm mt-2">فتح رابط الفيديو</a>
-                      {% endif %}
-                    {% else %}
-                      <a href="{{ c.source_path }}" target="_blank" class="btn btn-info btn-sm fw-bold mt-2">فتح / تحميل الملف</a>
-                    {% endif %}
+    {% elif tab == 'subscriptions' %}
+      <div class="panel-card mb-4">
+        <h4 class="fw-bold mb-3">اشتراكاتي الحالية</h4>
+        {% if subscribed_weeks %}
+          <div class="row g-3">
+            {% for w in subscribed_weeks %}
+              <div class="col-md-6">
+                <div class="stat-box d-flex justify-content-between align-items-center">
+                  <div>
+                    <div class="fw-bold">{{ w.title }}</div>
+                    <div class="small text-secondary">{{ w.description or 'باقة دراسية' }}</div>
                   </div>
+                  <a href="{{ url_for('student_dashboard', week_id=w.id) }}" class="btn btn-sm btn-primary">دخول</a>
                 </div>
-              {% endfor %}
-            </div>
-          {% else %}
-            <p class="text-secondary mb-0">لا يوجد محتوى مضاف لهذا الدرس حتى الآن.</p>
-          {% endif %}
-        {% else %}
-          <div class="alert alert-warning rounded-3 mb-0">
-            هذا الدرس غير مفعل لحسابك بعد. فعّل كود الاشتراك أو تواصل مع الإدارة لتفعيل حسابك.
+              </div>
+            {% endfor %}
           </div>
+        {% else %}
+          <p class="text-secondary mb-0">لا توجد باقات مفتوحة لحسابك حالياً. يمكنك تفعيل كود شحن بالأسفل.</p>
         {% endif %}
       </div>
-    {% endif %}
 
-    <div class="card-box mb-4">
-      <h5 class="fw-bold mb-3"><i class="fa-solid fa-book-open text-warning me-1"></i> دروس {{ user.grade }}</h5>
-      {% if weeks %}
-        <div class="row g-3">
-          {% for w in weeks %}
-            <div class="col-md-6 col-lg-4">
-              <div class="p-3 rounded-3 bg-dark border border-secondary h-100 d-flex flex-column justify-content-between">
-                <div>
-                  <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="badge bg-secondary">أسبوع {{ w.order_num }}</span>
-                    {% if w.is_free or user.is_active or (w.id in unlocked_ids) %}
-                      <span class="badge bg-success">متاح</span>
+    {% elif tab == 'schedule' %}
+      <div class="panel-card">
+        <h4 class="fw-bold mb-3">تفاصيل محاضراتي ({{ user.grade }})</h4>
+        <div class="table-responsive">
+          <table class="table table-dark table-hover align-middle mb-0">
+            <thead>
+              <tr>
+                <th>المحاضرة / الباقة</th>
+                <th>عدد العناصر</th>
+                <th>حالة الفتح</th>
+                <th>إجراء</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for w in weeks %}
+                {% set info = week_access_map[w.id] %}
+                <tr>
+                  <td class="fw-bold">{{ w.title }}</td>
+                  <td>{{ w.contents|length }}</td>
+                  <td>
+                    {% if info.can_open %}
+                      <span class="badge bg-success">متاحة</span>
+                    {% elif not info.exam_ok %}
+                      <span class="badge bg-danger">مغلقة لحين اجتياز الاختبار</span>
                     {% else %}
-                      <span class="badge bg-warning text-dark">مغلق • {{ w.price }} ج.م</span>
+                      <span class="badge bg-warning text-dark">تحتاج تفعيل كود</span>
                     {% endif %}
-                  </div>
-                  <h6 class="fw-bold">{{ w.title }}</h6>
-                  <p class="text-secondary small">{{ w.description }}</p>
-                </div>
-                <a href="{{ url_for('student_dashboard', week_id=w.id) }}" class="btn btn-gold btn-sm w-100 mt-2">دخول الدرس</a>
+                  </td>
+                  <td>
+                    <a href="{{ url_for('student_dashboard', week_id=w.id) }}" class="btn btn-sm btn-primary">فتح</a>
+                  </td>
+                </tr>
+              {% else %}
+                <tr><td colspan="4" class="text-center text-secondary">لا توجد محاضرات مضافة لهذا الصف بعد.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    {% elif tab == 'centers' %}
+      <div class="panel-card">
+        <h4 class="fw-bold mb-3">المراكز والفروع والمواعيد</h4>
+        <div class="row g-3">
+          {% for c in centers %}
+            <div class="col-md-6">
+              <div class="stat-box">
+                <h5 class="fw-bold text-info mb-1">{{ c.name }}</h5>
+                {% if c.address %}<p class="small mb-1"><i class="bi bi-geo-alt me-1"></i> {{ c.address }}</p>{% endif %}
+                {% if c.schedule_notes %}<p class="small text-secondary mb-0"><i class="bi bi-clock me-1"></i> {{ c.schedule_notes }}</p>{% endif %}
               </div>
             </div>
+          {% else %}
+            <p class="text-secondary mb-0">لم يتم إضافة مراكز أو فروع بعد.</p>
           {% endfor %}
         </div>
-      {% else %}
-        <p class="text-secondary mb-0">لا توجد دروس متاحة لصفك الدراسي حالياً.</p>
-      {% endif %}
-    </div>
+      </div>
 
-    <div class="row g-4">
-      <div class="col-lg-6">
-        <div class="card-box h-100">
-          <h5 class="fw-bold mb-3"><i class="fa-solid fa-pen-to-square text-info me-1"></i> الامتحانات المتاحة</h5>
-          {% if exams %}
-            <div class="list-group list-group-flush">
-              {% for ex in exams %}
-                {% set res = results_by_exam.get(ex.id) %}
-                <div class="list-group-item bg-transparent text-white border-secondary d-flex justify-content-between align-items-center px-0">
-                  <div>
-                    <div class="fw-bold">{{ ex.title }}</div>
-                    <small class="text-secondary">{{ ex.questions|length }} سؤال • {{ ex.duration_minutes }} دقيقة</small>
+    {% elif tab == 'notifications' %}
+      <div class="panel-card">
+        <h4 class="fw-bold mb-3">الإشعارات والتنبيهات</h4>
+        {% for ann in announcements %}
+          <div class="stat-box mb-3">
+            <div class="fw-bold text-info">{{ ann.title }}</div>
+            <p class="small mb-0 mt-1">{{ ann.message }}</p>
+          </div>
+        {% else %}
+          <p class="text-secondary mb-0">لا توجد إشعارات جديدة حالياً.</p>
+        {% endfor %}
+      </div>
+
+    {% else %}
+      <!-- عرض باقة/محاضرة محددة بأقسامها وقفل الاختبار السابق -->
+      {% if active_week %}
+        <div class="panel-card mb-4">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <div>
+              <span class="badge bg-primary mb-1">{{ active_week.grade }}</span>
+              <h3 class="fw-bold mb-0">{{ active_week.title }}</h3>
+              {% if active_week.description %}<p class="text-secondary small mt-1 mb-0">{{ active_week.description }}</p>{% endif %}
+            </div>
+            <a href="{{ url_for('student_dashboard') }}" class="btn btn-outline-light btn-sm">رجوع للباقات</a>
+          </div>
+
+          {% if not active_week_info.exam_ok %}
+            <div class="locked-banner mb-3">
+              <div class="fw-bold mb-1"><i class="bi bi-lock-fill me-1"></i> هذا المحتوى مغلق حتى النجاح في الاختبار السابق!</div>
+              <div class="small">{{ active_week_info.lock_reason }}</div>
+              <a href="#examsSection" class="btn btn-sm btn-danger mt-2">الذهاب إلى الاختبارات</a>
+            </div>
+          {% elif not active_week_info.has_sub %}
+            <div class="alert alert-warning">
+              هذه الباقة تحتاج تفعيل كود الاشتراك أولاً لفتح محتواها.
+            </div>
+          {% else %}
+            {% set sec_list = [
+              ('explanation', 'الشرح'),
+              ('interactive', 'التطبيق التفاعلي'),
+              ('homework', 'تسليم الواجب'),
+              ('exam_link', 'الامتحان')
+            ] %}
+            <div class="d-grid gap-3">
+              {% for sec_key, sec_label in sec_list %}
+                {% set items = grouped_contents[sec_key] %}
+                <div class="border border-secondary border-opacity-25 rounded-3 p-2">
+                  <div class="d-flex justify-content-between align-items-center sec-header" onclick="toggleSec('sec_{{ sec_key }}', this)">
+                    <span class="fw-bold">{{ sec_label }} ({{ items|length }})</span>
+                    <span class="small text-info sec-toggle-text">إخفاء ^</span>
                   </div>
-                  <div class="d-flex align-items-center gap-2">
-                    {% if res %}
-                      <span class="badge bg-success">{{ res.percentage }}%</span>
-                    {% endif %}
-                    <a href="{{ url_for('take_exam', exam_id=ex.id) }}" class="btn btn-sm btn-gold rounded-3">
-                      {% if res %}إعادة الحل{% else %}ابدأ الامتحان{% endif %}
-                    </a>
+                  <div id="sec_{{ sec_key }}" class="mt-2 d-grid gap-2">
+                    {% for item in items %}
+                      <div class="content-row d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div>
+                          <div class="fw-bold">{{ item.title }}</div>
+                          {% if item.duration_or_notes %}<div class="small text-secondary">{{ item.duration_or_notes }}</div>{% endif %}
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                          {% if item.content_type.startswith('video') %}
+                            {% if item.content_type == 'video_link' %}
+                              <a href="{{ format_embed_url(item.source_path) }}" target="_blank" class="btn btn-sm btn-primary">مشاهدة</a>
+                            {% else %}
+                              <a href="{{ item.source_path }}" target="_blank" class="btn btn-sm btn-primary">مشاهدة</a>
+                            {% endif %}
+                            <form method="POST" action="{{ url_for('mark_watched', content_id=item.id) }}" class="d-inline">
+                              <button type="submit" class="btn btn-sm {% if item.id in watched_ids %}btn-success{% else %}btn-outline-success{% endif %}">
+                                {% if item.id in watched_ids %}تمت المشاهدة{% else %}تأكيد المشاهدة{% endif %}
+                              </button>
+                            </form>
+                          {% else %}
+                            <a href="{{ item.source_path }}" target="_blank" class="btn btn-sm btn-info text-dark fw-bold">فتح</a>
+                          {% endif %}
+                        </div>
+                      </div>
+                    {% else %}
+                      <div class="text-secondary small px-2 py-1">لا يوجد محتوى في هذا القسم حالياً.</div>
+                    {% endfor %}
                   </div>
                 </div>
               {% endfor %}
             </div>
-          {% else %}
-            <p class="text-secondary mb-0">لا توجد امتحانات مضافة لصفك الدراسي حالياً.</p>
           {% endif %}
+        </div>
+      {% endif %}
+
+      <!-- كروت الإحصائيات ونسبة التقدم -->
+      <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+          <div class="stat-box">
+            <div class="text-secondary small">نسبة التقدم الكلية</div>
+            <div class="fs-3 fw-bold text-info mt-1">{{ level_info.overall }}%</div>
+            <span class="badge {{ level_info.badge_class }} mt-1">{{ level_info.label }}</span>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="stat-box">
+            <div class="text-secondary small">الفيديوهات المشاهدة</div>
+            <div class="fs-3 fw-bold text-success mt-1">{{ level_info.watched_count }} / {{ level_info.total_videos }}</div>
+            <div class="small text-secondary mt-1">{{ level_info.video_pct }}%</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="stat-box">
+            <div class="text-secondary small">الامتحانات المحلولة</div>
+            <div class="fs-3 fw-bold text-warning mt-1">{{ level_info.solved_exams }} / {{ level_info.total_exams }}</div>
+            <div class="small text-secondary mt-1">{{ level_info.exam_pct }}%</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="stat-box">
+            <div class="text-secondary small">متوسط الدرجات</div>
+            <div class="fs-3 fw-bold text-primary mt-1">{{ level_info.avg_score }}%</div>
+            <div class="small text-secondary mt-1">{{ user.grade }}</div>
+          </div>
         </div>
       </div>
 
-      <div class="col-lg-6">
-        <div class="card-box h-100">
-          <h5 class="fw-bold mb-3"><i class="fa-solid fa-square-poll-vertical text-success me-1"></i> قائمة درجات الامتحانات</h5>
-          {% if results %}
-            <div class="table-responsive">
-              <table class="table table-dark table-sm align-middle mb-0">
-                <thead>
-                  <tr>
-                    <th>الامتحان</th>
-                    <th>الدرجة</th>
-                    <th>النسبة</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for r in results %}
-                    <tr>
-                      <td class="fw-bold">{{ r.exam.title if r.exam else 'امتحان' }}</td>
-                      <td>{{ r.score }} / {{ r.total_questions }}</td>
-                      <td><span class="badge bg-info text-dark">{{ r.percentage }}%</span></td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
+      <!-- تفعيل كود الاشتراك -->
+      <div class="panel-card mb-4">
+        <h5 class="fw-bold mb-2"><i class="bi bi-key-fill text-warning me-1"></i> تفعيل كود باقة / اشتراك</h5>
+        <form method="POST" action="{{ url_for('redeem_code') }}" class="row g-2">
+          <div class="col-sm-8">
+            <input type="text" name="code" class="form-control" placeholder="اكتب كود التفعيل هنا (مثال: AHMED-XXXXXXXX)" required />
+          </div>
+          <div class="col-sm-4">
+            <button type="submit" class="btn btn-success w-100 fw-bold">تفعيل الكود</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- كروت الباقات / الشهور -->
+      <h4 class="fw-bold mb-3">الباقات المتاحة لـ {{ user.grade }}</h4>
+      <div class="row g-3 mb-4">
+        {% for w in weeks %}
+          {% set info = week_access_map[w.id] %}
+          <div class="col-md-6 col-lg-4">
+            <div class="package-card">
+              {% if w.cover_image %}
+                <img src="{{ w.cover_image }}" alt="{{ w.title }}" style="height:175px;width:100%;object-fit:cover;" />
+              {% else %}
+                <div class="d-flex align-items-center justify-content-center bg-primary bg-opacity-25 text-info" style="height:140px;font-size:2.2rem;">
+                  <i class="bi bi-journal-bookmark-fill"></i>
+                </div>
+              {% endif %}
+              <div class="p-3 d-flex flex-column flex-grow-1">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <span class="badge bg-info text-dark">{{ w.grade }}</span>
+                  {% if w.is_free %}
+                    <span class="badge bg-success">مجاني</span>
+                  {% else %}
+                    <span class="badge bg-secondary">{{ w.price }} جنيه</span>
+                  {% endif %}
+                </div>
+                <h5 class="fw-bold mt-1">{{ w.title }}</h5>
+                <p class="small text-secondary flex-grow-1">{{ w.description or 'شرح وتدريبات واختبارات' }}</p>
+
+                {% if not info.exam_ok %}
+                  <div class="small text-danger mb-2"><i class="bi bi-lock-fill"></i> مغلق حتى النجاح في الاختبار السابق</div>
+                {% endif %}
+
+                <a href="{{ url_for('student_dashboard', week_id=w.id) }}" class="btn btn-primary w-100 fw-bold rounded-3">
+                  الدخول للباقة
+                </a>
+              </div>
+            </div>
+          </div>
+        {% else %}
+          <div class="col-12">
+            <div class="panel-card text-center text-secondary">
+              لا توجد باقات منشورة لهذا الصف الدراسي حالياً.
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+
+      <!-- الامتحانات والنتائج -->
+      <div id="examsSection" class="panel-card">
+        <h4 class="fw-bold mb-3">الامتحانات والنتائج</h4>
+        <div class="list-group list-group-flush">
+          {% for ex in exams %}
+            {% set res = results_by_exam.get(ex.id) %}
+            <div class="list-group-item bg-transparent text-white border-secondary border-opacity-25 d-flex justify-content-between align-items-center flex-wrap gap-2 px-0">
+              <div>
+                <div class="fw-bold">{{ ex.title }}</div>
+                <div class="small text-secondary">المدة: {{ ex.duration_minutes }} دقيقة • عدد الأسئلة: {{ ex.questions|length }}</div>
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                {% if res %}
+                  <span class="badge bg-success">{{ res.score }} / {{ res.total_questions }} ({{ res.percentage }}%)</span>
+                {% endif %}
+                <a href="{{ url_for('take_exam', exam_id=ex.id) }}" class="btn btn-sm btn-warning text-dark fw-bold">
+                  {% if res %}إعادة الاختبار{% else %}بدء الاختبار{% endif %}
+                </a>
+              </div>
             </div>
           {% else %}
-            <p class="text-secondary mb-0">لم تقم بحل أي امتحان بعد.</p>
-          {% endif %}
+            <div class="text-secondary small">لا توجد امتحانات متاحة حالياً.</div>
+          {% endfor %}
         </div>
       </div>
-    </div>
-
-    <footer class="text-center py-4 mt-5 text-warning fw-bold small">
-      تطوير المهندس عبدالعزيز أمير
-    </footer>
+    {% endif %}
   </div>
 
+  {% if clean_wa_phone(settings.whatsapp_number) %}
+    <a href="https://wa.me/{{ clean_wa_phone(settings.whatsapp_number) }}?text={{ quote('السلام عليكم، أنا طالب في منصة مستر أحمد جمال وأحتاج مساعدة') }}" target="_blank" class="wa-fab">
+      <i class="bi bi-chat-dots-fill"></i> تواصل مع الدعم
+    </a>
+  {% endif %}
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    function toggleSec(elId, headerEl) {
+      const box = document.getElementById(elId);
+      const label = headerEl.querySelector(".sec-toggle-text");
+      if (!box) return;
+      if (box.classList.contains("d-none")) {
+        box.classList.remove("d-none");
+        if (label) label.textContent = "إخفاء ^";
+      } else {
+        box.classList.add("d-none");
+        if (label) label.textContent = "عرض v";
+      }
+    }
+  </script>
 </body>
 </html>

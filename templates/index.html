@@ -5,326 +5,193 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{{ settings.platform_name }}</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css" rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
   <style>
     :root {
-      --bg-main: #090f1d;
-      --bg-card: #111b30;
-      --accent: #f59e0b;
-      --accent-blue: #38bdf8;
+      --bg-main: #071324;
+      --bg-card: #0e223d;
+      --accent-blue: #1677ff;
+      --accent-green: #2ea043;
+      --text-muted: #9fb3c8;
     }
-    * { font-family: 'Cairo', sans-serif; }
     body {
       background-color: var(--bg-main);
-      color: #f8fafc;
-      overflow-x: hidden;
+      color: #ffffff;
+      font-family: system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
-    .navbar {
-      background: rgba(9, 15, 29, 0.92);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    .top-bar {
+      background: linear-gradient(90deg, #0d6efd, #1677ff);
+      border-radius: 0 0 24px 24px;
+      padding: 14px 20px;
     }
-    .hero {
-      padding: 65px 0 45px;
-      background:
-        radial-gradient(circle at 85% 20%, rgba(245, 158, 11, 0.16), transparent 42%),
-        radial-gradient(circle at 15% 75%, rgba(56, 189, 248, 0.14), transparent 45%);
-    }
-    .hero-title {
-      font-size: clamp(2rem, 4.4vw, 3.2rem);
-      font-weight: 900;
-      line-height: 1.25;
-    }
-    .hero-title span { color: var(--accent); }
-    .card-box {
-      background-color: var(--bg-card);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 22px;
-      padding: 22px;
-      height: 100%;
-      transition: 0.25s ease;
-    }
-    .card-box:hover {
-      transform: translateY(-4px);
-      border-color: var(--accent);
-    }
-    .grade-pill {
-      display: block;
-      text-decoration: none;
-      color: #f8fafc;
+    .hero-card {
       background: var(--bg-card);
-      border: 1px solid rgba(255, 255, 255, 0.09);
-      border-radius: 18px;
-      padding: 18px;
-      transition: 0.2s ease;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 24px;
+      padding: 40px 24px;
+      margin-top: 28px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
     }
-    .grade-pill:hover, .grade-pill.active {
-      border-color: var(--accent);
-      background: rgba(245, 158, 11, 0.09);
-      color: #fff;
-    }
-    .btn-gold {
-      background: linear-gradient(135deg, #f59e0b, #d97706);
-      color: #090f1d;
-      font-weight: 800;
+    .btn-start {
+      background-color: var(--accent-green);
       border: none;
-      border-radius: 12px;
-      padding: 10px 20px;
-    }
-    .btn-gold:hover { color: #090f1d; opacity: 0.92; }
-    .btn-outline-light-custom {
-      border: 1px solid rgba(255, 255, 255, 0.18);
       color: #fff;
       font-weight: 700;
-      border-radius: 12px;
-      padding: 10px 20px;
+      padding: 12px 28px;
+      border-radius: 14px;
     }
-    .btn-outline-light-custom:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
-    .teacher-img {
-      width: 150px;
-      height: 150px;
-      border-radius: 22px;
-      object-fit: cover;
-      border: 3px solid var(--accent);
+    .btn-start:hover { background-color: #268938; color: #fff; }
+    .btn-login-outline {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #fff;
+      font-weight: 600;
+      padding: 12px 24px;
+      border-radius: 14px;
     }
+    .btn-login-outline:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
+    .wa-fab {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      z-index: 999;
+      background: #1677ff;
+      color: #fff;
+      border-radius: 16px;
+      padding: 10px 18px;
+      text-decoration: none;
+      font-weight: 700;
+      box-shadow: 0 8px 24px rgba(22, 119, 255, 0.45);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .wa-fab:hover { color: #fff; background: #1264d9; }
     footer {
-      background: #050912;
+      margin-top: auto;
+      background: #050d1a;
       border-top: 1px solid rgba(255, 255, 255, 0.08);
-      padding: 28px 0;
-      margin-top: 70px;
+      padding: 32px 16px 80px;
+      color: var(--text-muted);
     }
+    footer a { color: #dce7f3; text-decoration: none; }
+    footer a:hover { color: #4da3ff; }
   </style>
 </head>
 <body>
-
-  <nav class="navbar navbar-expand-lg navbar-dark sticky-top py-3">
-    <div class="container">
-      <a class="navbar-brand fw-bold d-flex align-items-center gap-2" href="{{ url_for('index') }}">
-        <span class="badge bg-warning text-dark fs-6 px-2 py-1 rounded-3">∑</span>
-        <span>{{ settings.platform_name }}</span>
-      </a>
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-      <div class="collapse navbar-collapse" id="navMenu">
-        <ul class="navbar-nav me-auto gap-lg-3 my-2 my-lg-0">
-          <li class="nav-item"><a class="nav-link" href="#grades">الصفوف الدراسية</a></li>
-          <li class="nav-item"><a class="nav-link" href="#lessons">الدروس والأسابيع</a></li>
-          <li class="nav-item"><a class="nav-link" href="#smart-system">تقييم المستوى</a></li>
-        </ul>
-        <div class="d-flex flex-wrap gap-2">
-          {% if current_user %}
-            {% if current_user.role == 'admin' %}
-              <a href="{{ url_for('admin_dashboard') }}" class="btn btn-gold btn-sm">لوحة المدرس</a>
-            {% else %}
-              <a href="{{ url_for('student_dashboard') }}" class="btn btn-gold btn-sm">حسابي ومستواي</a>
-            {% endif %}
-            <a href="{{ url_for('logout') }}" class="btn btn-outline-light-custom btn-sm">خروج</a>
+  <header class="top-bar">
+    <div class="container d-flex justify-content-between align-items-center">
+      <div class="d-flex align-items-center gap-2 fw-bold fs-5">
+        <i class="bi bi-calculator-fill"></i>
+        <span>{{ settings.teacher_name }}</span>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        {% if current_user %}
+          {% if current_user.role == 'admin' %}
+            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-sm btn-light fw-bold">لوحة الإدارة</a>
           {% else %}
-            <a href="{{ url_for('auth') }}" class="btn btn-outline-light-custom btn-sm">تسجيل الدخول</a>
-            <a href="{{ url_for('auth') }}?mode=register" class="btn btn-gold btn-sm">حساب جديد</a>
+            <a href="{{ url_for('student_dashboard') }}" class="btn btn-sm btn-light fw-bold">صفحتي</a>
           {% endif %}
-        </div>
+          <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline-light">خروج</a>
+        {% else %}
+          <a href="{{ url_for('auth', mode='login') }}" class="btn btn-sm btn-outline-light">تسجيل الدخول</a>
+          <a href="{{ url_for('auth', mode='register') }}" class="btn btn-sm btn-light fw-bold text-dark">إنشاء حساب طالب</a>
+        {% endif %}
       </div>
     </div>
-  </nav>
+  </header>
 
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      <div class="container mt-3">
-        {% for category, msg in messages %}
-          <div class="alert alert-{{ category }} alert-dismissible fade show rounded-3" role="alert">
-            {{ msg }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-          </div>
-        {% endfor %}
-      </div>
-    {% endif %}
-  {% endwith %}
-
-  <section class="hero">
-    <div class="container">
-      <div class="row align-items-center g-5">
-        <div class="col-lg-7">
-          <span class="badge rounded-pill px-3 py-2 mb-3" style="background: rgba(245, 158, 11, 0.16); color: #fbbf24; font-weight: 800;">
-            إعدادي وثانوي • شرح + امتحانات + متابعة مستوى تلقائية
-          </span>
-          <h1 class="hero-title mb-3">
-            الرياضيات أسهل وأوضح مع <span>{{ settings.teacher_name }}</span>
-          </h1>
-          <p class="text-secondary fs-5 mb-4" style="line-height: 1.85;">
-            {{ settings.teacher_bio }}
-          </p>
-          <div class="d-flex flex-wrap gap-3 mb-4">
-            <a href="{{ url_for('auth') }}?mode=register" class="btn btn-gold">
-              <i class="fa-solid fa-user-plus me-1"></i> إنشاء حساب طالب
-            </a>
-            <a href="#grades" class="btn btn-outline-light-custom">
-              <i class="fa-solid fa-layer-group me-1"></i> اختر صفك الدراسي
-            </a>
-            {% if settings.whatsapp_number %}
-              <a href="https://wa.me/{{ clean_wa_phone(settings.whatsapp_number) }}" target="_blank" class="btn btn-success fw-bold rounded-3 px-3 py-2">
-                <i class="fa-brands fa-whatsapp me-1"></i> تواصل واتساب
-              </a>
-            {% endif %}
-          </div>
-
-          <div class="row g-3">
-            <div class="col-4">
-              <div class="card-box text-center py-3">
-                <div class="fw-bold fs-4 text-warning">{{ students_count }}</div>
-                <small class="text-secondary">طالب مسجل</small>
-              </div>
-            </div>
-            <div class="col-4">
-              <div class="card-box text-center py-3">
-                <div class="fw-bold fs-4 text-info">{{ videos_count }}</div>
-                <small class="text-secondary">فيديو شرح</small>
-              </div>
-            </div>
-            <div class="col-4">
-              <div class="card-box text-center py-3">
-                <div class="fw-bold fs-4 text-success">{{ exams_count }}</div>
-                <small class="text-secondary">امتحان تفاعلي</small>
-              </div>
-            </div>
-          </div>
+  <main class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mt-3">
+          {% for cat, msg in messages %}
+            <div class="alert alert-{{ cat }} rounded-3">{{ msg }}</div>
+          {% endfor %}
         </div>
+      {% endif %}
+    {% endwith %}
 
-        <div class="col-lg-5">
-          <div class="card-box text-center" style="border-color: rgba(245, 158, 11, 0.3);">
-            {% if settings.teacher_image %}
-              <img src="{{ settings.teacher_image }}" alt="{{ settings.teacher_name }}" class="teacher-img mb-3" />
-            {% else %}
-              <div class="teacher-img mx-auto mb-3 d-flex align-items-center justify-content-center bg-dark">
-                <i class="fa-solid fa-calculator fa-3x text-warning"></i>
-              </div>
-            {% endif %}
-            <h3 class="fw-bold mb-1">{{ settings.teacher_name }}</h3>
-            <p class="text-warning fw-bold small mb-3">مدرس الرياضيات للمرحلتين الإعدادية والثانوية</p>
-            <p class="text-secondary small mb-0" style="line-height: 1.8;">
-              المنصة بتتابع مشاهدة الفيديوهات، وحل الامتحانات ودرجاتك، وتحدد مستواك تلقائياً وتعرضه ليك وللمدرس.
-            </p>
+    <section class="hero-card text-center">
+      <div class="mb-3">
+        {% if settings.teacher_image %}
+          <img src="{{ settings.teacher_image }}" alt="{{ settings.teacher_name }}" style="width:110px;height:110px;object-fit:cover;border-radius:50%;border:3px solid #1677ff;" />
+        {% else %}
+          <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-primary bg-opacity-25 text-primary" style="width:96px;height:96px;font-size:2.4rem;">
+            <i class="bi bi-person-workspace"></i>
           </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section id="grades" class="py-4">
-    <div class="container">
-      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
-        <div>
-          <h2 class="fw-bold mb-1">الصفوف الدراسية</h2>
-          <p class="text-secondary mb-0">اضغط على الصف لعرض دروسه وعدد طلابه</p>
-        </div>
-        {% if selected_grade %}
-          <a href="{{ url_for('index') }}#grades" class="btn btn-outline-light-custom btn-sm">عرض كل الصفوف</a>
         {% endif %}
       </div>
 
-      <div class="row g-3">
-        {% for g in grades %}
-          <div class="col-md-6 col-lg-4">
-            <a href="{{ url_for('index', grade=g) }}#lessons" class="grade-pill {% if selected_grade == g %}active{% endif %}">
-              <div class="d-flex justify-content-between align-items-center">
-                <span class="fw-bold">{{ g }}</span>
-                <span class="badge bg-warning text-dark">{{ grade_counts.get(g, 0) }} طالب</span>
-              </div>
-            </a>
-          </div>
-        {% endfor %}
-      </div>
-    </div>
-  </section>
+      <span class="badge bg-primary bg-opacity-25 text-info px-3 py-2 rounded-pill mb-2">
+        أهلاً بك يا بطل في منصتك التعليمية
+      </span>
 
-  <section id="lessons" class="py-5">
-    <div class="container">
-      <h2 class="fw-bold mb-1">
-        {% if selected_grade %}دروس وأسابيع {{ selected_grade }}{% else %}أحدث الدروس والأسابيع{% endif %}
+      <h1 class="fw-bold mt-2 mb-2" style="font-size: clamp(1.6rem, 4vw, 2.5rem);">
+        {{ settings.teacher_name }}
+      </h1>
+      <h2 class="h4 text-info fw-bold mb-3">
+        الرياضة أسهل وأوضح مع مستر أحمد جمال
       </h2>
-      <p class="text-secondary mb-4">محتوى منظم يشمل الفيديوهات والملفات والامتحانات</p>
+      <p class="mx-auto mb-4" style="max-width: 680px; color: var(--text-muted); line-height: 1.8;">
+        {{ settings.teacher_bio }}
+      </p>
 
-      {% if weeks %}
-        <div class="row g-4">
-          {% for w in weeks %}
-            <div class="col-md-6 col-lg-4">
-              <div class="card-box d-flex flex-column justify-content-between">
-                <div>
-                  {% if w.cover_image %}
-                    <img src="{{ w.cover_image }}" alt="{{ w.title }}" class="w-100 rounded-3 mb-3" style="height: 160px; object-fit: cover;" />
-                  {% else %}
-                    <div class="w-100 rounded-3 mb-3 d-flex align-items-center justify-content-center bg-dark" style="height: 160px;">
-                      <i class="fa-solid fa-play-circle fa-3x text-warning"></i>
-                    </div>
-                  {% endif %}
-                  <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="badge bg-info text-dark">{{ w.grade }}</span>
-                    {% if w.is_free %}
-                      <span class="badge bg-success">مجاني</span>
-                    {% else %}
-                      <span class="badge bg-warning text-dark">{{ w.price }} ج.م</span>
-                    {% endif %}
-                  </div>
-                  <h5 class="fw-bold">{{ w.title }}</h5>
-                  <p class="text-secondary small">{{ w.description or "شرح تفصيلي وتدريبات على الدرس." }}</p>
-                </div>
-                <a href="{{ url_for('student_dashboard', week_id=w.id) }}" class="btn btn-gold w-100 mt-3">
-                  فتح الدرس
-                </a>
-              </div>
-            </div>
-          {% endfor %}
-        </div>
-      {% else %}
-        <div class="card-box text-center py-5">
-          <p class="text-secondary mb-0">لا توجد دروس منشورة في هذا القسم حالياً.</p>
-        </div>
-      {% endif %}
-    </div>
-  </section>
-
-  <section id="smart-system" class="py-4">
-    <div class="container">
-      <div class="row g-4">
-        <div class="col-md-4">
-          <div class="card-box">
-            <i class="fa-solid fa-circle-play fa-2x text-warning mb-3"></i>
-            <h5 class="fw-bold">متابعة مشاهدة الفيديوهات</h5>
-            <p class="text-secondary small mb-0">المنصة بتسجل الفيديوهات اللي شفتها وبتحسب نسبة التزامك بالشرح.</p>
-          </div>
-        </div>
-        <div class="col-md-4">
-          <div class="card-box">
-            <i class="fa-solid fa-file-pen fa-2x text-info mb-3"></i>
-            <h5 class="fw-bold">الامتحانات وقائمة الدرجات</h5>
-            <p class="text-secondary small mb-0">حل امتحاناتك وتابع قائمة درجاتك ونسبتك في كل امتحان بوضوح.</p>
-          </div>
-        </div>
-        <div class="col-md-4">
-          <div class="card-box">
-            <i class="fa-solid fa-award fa-2x text-success mb-3"></i>
-            <h5 class="fw-bold">مستواك يظهر ليك وللمدرس</h5>
-            <p class="text-secondary small mb-0">تحديد تلقائي لمستواك بناءً على الفيديوهات والامتحانات والدرجات.</p>
-          </div>
-        </div>
+      <div class="d-flex flex-wrap justify-content-center gap-3">
+        <a href="{{ url_for('auth', mode='register') }}" class="btn btn-start">
+          <i class="bi bi-person-plus-fill me-1"></i> إنشاء حساب طالب
+        </a>
+        <a href="{{ url_for('auth', mode='login') }}" class="btn btn-login-outline">
+          <i class="bi bi-box-arrow-in-right me-1"></i> تسجيل الدخول
+        </a>
+        {% if clean_wa_phone(settings.whatsapp_number) %}
+          <a href="https://wa.me/{{ clean_wa_phone(settings.whatsapp_number) }}?text={{ quote('السلام عليكم، أحتاج مساعدة في منصة مستر أحمد جمال للرياضيات') }}" target="_blank" class="btn btn-success fw-bold px-4 py-2 rounded-3 d-inline-flex align-items-center gap-2">
+            <i class="bi bi-whatsapp"></i> تواصل على الواتس
+          </a>
+        {% endif %}
       </div>
-    </div>
-  </section>
+    </section>
+  </main>
+
+  {% if clean_wa_phone(settings.whatsapp_number) %}
+    <a href="https://wa.me/{{ clean_wa_phone(settings.whatsapp_number) }}?text={{ quote('السلام عليكم، أحتاج مساعدة في منصة مستر أحمد جمال') }}" target="_blank" class="wa-fab">
+      <i class="bi bi-chat-dots-fill"></i> تواصل مع الدعم
+    </a>
+  {% endif %}
 
   <footer>
-    <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
-      <div>
-        <div class="fw-bold">{{ settings.platform_name }} — {{ settings.teacher_name }}</div>
-        <small class="text-secondary">© 2026 جميع الحقوق محفوظة</small>
-      </div>
-      <div class="text-warning fw-bold">
-        تطوير المهندس عبدالعزيز أمير
+    <div class="container">
+      <div class="row g-4">
+        <div class="col-md-6">
+          <h5 class="text-white fw-bold">{{ settings.teacher_name }}</h5>
+          <p class="small mb-1">الرياضة أسهل وأوضح مع مستر أحمد جمال</p>
+          <p class="small mb-0">جميع الحقوق محفوظة © 2026</p>
+        </div>
+        <div class="col-md-3">
+          <h6 class="text-white fw-bold">روابط سريعة</h6>
+          <ul class="list-unstyled small d-grid gap-2">
+            <li><a href="{{ url_for('index') }}">الرئيسية</a></li>
+            <li><a href="{{ url_for('auth', mode='login') }}">تسجيل الدخول</a></li>
+            <li><a href="{{ url_for('auth', mode='register') }}">إنشاء حساب طالب</a></li>
+          </ul>
+        </div>
+        <div class="col-md-3">
+          <h6 class="text-white fw-bold">السوشيال ميديا</h6>
+          <ul class="list-unstyled small d-grid gap-2">
+            {% if settings.facebook_url %}<li><a href="{{ settings.facebook_url }}" target="_blank"><i class="bi bi-facebook me-1"></i> فيسبوك</a></li>{% endif %}
+            {% if settings.instagram_url %}<li><a href="{{ settings.instagram_url }}" target="_blank"><i class="bi bi-instagram me-1"></i> إنستجرام</a></li>{% endif %}
+            {% if settings.tiktok_url %}<li><a href="{{ settings.tiktok_url }}" target="_blank"><i class="bi bi-tiktok me-1"></i> تيك توك</a></li>{% endif %}
+            {% if settings.youtube_url %}<li><a href="{{ settings.youtube_url }}" target="_blank"><i class="bi bi-youtube me-1"></i> يوتيوب</a></li>{% endif %}
+            {% if clean_wa_phone(settings.whatsapp_number) %}
+              <li><a href="https://wa.me/{{ clean_wa_phone(settings.whatsapp_number) }}" target="_blank"><i class="bi bi-whatsapp me-1"></i> واتساب ({{ settings.whatsapp_number }})</a></li>
+            {% endif %}
+          </ul>
+        </div>
       </div>
     </div>
   </footer>
-
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

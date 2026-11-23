@@ -74,20 +74,32 @@ GRADES = [
     "الصف الثالث الثانوي",
 ]
 
+CONTENT_SECTIONS = [
+    ("explanation", "الشرح"),
+    ("interactive", "التطبيق التفاعلي"),
+    ("homework", "تسليم الواجب"),
+    ("exam_link", "الامتحان"),
+]
+
 
 # ===================== نماذج قاعدة البيانات =====================
 
 class PlatformSettings(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    platform_name = db.Column(db.String(150), default="منصة مستر أحمد جمال للرياضيات")
+    platform_name = db.Column(db.String(150), default="الرياضة أسهل وأوضح مع مستر أحمد جمال")
     teacher_name = db.Column(db.String(150), default="مستر / أحمد جمال")
     teacher_bio = db.Column(
         db.Text,
-        default="شرح مبسط ومنهجي للرياضيات للمرحلتين الإعدادية والثانوية، تدريب مكثف على أفكار الامتحانات، وتقييم تلقائي لمستوى الطالب ومتابعة مستمرة مع ولي الأمر."
+        default="الرياضة أسهل وأوضح مع مستر أحمد جمال — شرح مبسط ومنهجي، تدريب مكثف على أفكار الامتحانات، وتقييم مستمر للمستوى."
     )
-    whatsapp_number = db.Column(db.String(30), default="01000000000")
+    whatsapp_number = db.Column(db.String(30), default="01070626007")
     teacher_image = db.Column(db.String(300), default="")
+    facebook_url = db.Column(db.String(300), default="")
+    instagram_url = db.Column(db.String(300), default="")
+    tiktok_url = db.Column(db.String(300), default="")
+    youtube_url = db.Column(db.String(300), default="")
     auto_activate_students = db.Column(db.Boolean, default=False)
+    pass_percentage_required = db.Column(db.Float, default=50.0)
 
 
 class User(db.Model):
@@ -115,6 +127,7 @@ class Week(db.Model):
     is_free = db.Column(db.Boolean, default=False)
     price = db.Column(db.Integer, default=50)
     cover_image = db.Column(db.String(300), default="")
+    prerequisite_exam_id = db.Column(db.Integer, nullable=True)
     is_published = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     contents = db.relationship("WeekContent", backref="week", cascade="all, delete-orphan", order_by="WeekContent.order_num")
@@ -125,6 +138,7 @@ class WeekContent(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     week_id = db.Column(db.Integer, db.ForeignKey("week.id"), nullable=False)
     title = db.Column(db.String(200), nullable=False)
+    section_key = db.Column(db.String(30), default="explanation")
     content_type = db.Column(db.String(30), nullable=False)
     source_path = db.Column(db.String(500), nullable=False)
     duration_or_notes = db.Column(db.String(150), default="")
@@ -190,7 +204,24 @@ class AccessCode(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
-# ===================== دوال مساعدة ومحرك المستوى التلقائي =====================
+class CenterBranch(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(150), nullable=False)
+    address = db.Column(db.String(250), default="")
+    schedule_notes = db.Column(db.String(250), default="")
+    grade = db.Column(db.String(80), default="")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class Announcement(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(150), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    grade = db.Column(db.String(80), default="")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+# ===================== دوال مساعدة وقفل المحتوى وتحديد المستوى =====================
 
 def get_settings():
     try:
@@ -238,6 +269,19 @@ def clean_wa_phone(phone):
     elif digits and not digits.startswith("2"):
         digits = "20" + digits
     return digits
+
+
+def is_week_unlocked_by_exam(user_id, week):
+    if not week.prerequisite_exam_id:
+        return True, ""
+    settings = get_settings()
+    req_pct = settings.pass_percentage_required if settings.pass_percentage_required is not None else 50.0
+    best_res = ExamResult.query.filter_by(user_id=user_id, exam_id=week.prerequisite_exam_id).order_by(ExamResult.percentage.desc()).first()
+    if best_res and best_res.percentage >= req_pct:
+        return True, ""
+    prereq_exam = db.session.get(Exam, week.prerequisite_exam_id)
+    exam_name = prereq_exam.title if prereq_exam else "الاختبار السابق"
+    return False, f"هذا المحتوى مغلق حتى النجاح في ({exam_name}) بنسبة {req_pct}% على الأقل."
 
 
 def evaluate_student_level(student):
@@ -307,8 +351,6 @@ def evaluate_student_level(student):
         "total_exams": total_exams,
         "exam_pct": round(exam_completion_ratio, 1),
         "avg_score": round(avg_score, 1),
-        "all_videos_done": (total_videos == 0) or (watched_count >= total_videos),
-        "all_exams_done": (total_exams == 0) or (solved_count >= total_exams),
     }
 
 
@@ -331,11 +373,11 @@ def admin_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if "user_id" not in session:
-            flash("سجل دخولك بحساب المدرس أولاً.", "warning")
+            flash("سجل دخولك بحساب الأدمن أولاً.", "warning")
             return redirect(url_for("auth"))
         user = db.session.get(User, session["user_id"])
         if not user or user.role != "admin":
-            flash("هذا القسم مخصص للمدرس فقط.", "danger")
+            flash("هذا القسم مخصص للإدارة فقط.", "danger")
             return redirect(url_for("index"))
         return f(*args, **kwargs)
     return decorated
@@ -344,9 +386,12 @@ def admin_required(f):
 @app.context_processor
 def inject_globals():
     current_user = None
+    recent_students = []
     if "user_id" in session:
         try:
             current_user = db.session.get(User, session["user_id"])
+            if current_user and current_user.role == "admin":
+                recent_students = User.query.filter_by(role="student").order_by(User.created_at.desc()).limit(6).all()
         except Exception:
             try:
                 db.session.rollback()
@@ -356,7 +401,9 @@ def inject_globals():
     return dict(
         settings=get_settings(),
         current_user=current_user,
+        recent_students=recent_students,
         grades=GRADES,
+        content_sections=CONTENT_SECTIONS,
         clean_wa_phone=clean_wa_phone,
         quote=quote
     )
@@ -366,41 +413,12 @@ def inject_globals():
 
 @app.route("/")
 def index():
-    selected_grade = request.args.get("grade", "").strip()
-    try:
-        weeks_query = Week.query.filter_by(is_published=True)
-        if selected_grade:
-            weeks_query = weeks_query.filter_by(grade=selected_grade)
-        weeks = weeks_query.order_by(Week.order_num.asc()).all()
-
-        grade_counts = {g: User.query.filter_by(role="student", grade=g).count() for g in GRADES}
-        students_count = User.query.filter_by(role="student").count()
-        videos_count = WeekContent.query.filter(WeekContent.content_type.like("video%")).count()
-        exams_count = Exam.query.count()
-    except Exception:
-        try:
-            db.session.rollback()
-        except Exception:
-            pass
-        weeks = []
-        grade_counts = {g: 0 for g in GRADES}
-        students_count = 0
-        videos_count = 0
-        exams_count = 0
-
-    return render_template(
-        "index.html",
-        weeks=weeks,
-        selected_grade=selected_grade,
-        grade_counts=grade_counts,
-        students_count=students_count,
-        videos_count=videos_count,
-        exams_count=exams_count
-    )
+    return render_template("index.html")
 
 
 @app.route("/auth", methods=["GET", "POST"])
 def auth():
+    mode = request.args.get("mode", "login")
     if request.method == "POST":
         action = request.form.get("action")
 
@@ -418,39 +436,41 @@ def auth():
                 session["user_id"] = user.id
                 session["session_token"] = token
                 flash(f"أهلاً بك يا {user.full_name}!", "success")
-                return redirect(url_for("admin_dashboard" if user.role == "admin" else "student_dashboard"))
+                if user.role == "admin":
+                    return redirect(url_for("admin_dashboard"))
+                return redirect(url_for("student_dashboard"))
             else:
                 flash("بيانات الدخول غير صحيحة.", "danger")
+                return render_template("auth.html", mode="login")
 
         elif action == "register":
             full_name = request.form.get("full_name", "").strip()
             phone = request.form.get("phone", "").strip()
-            parent_name = request.form.get("parent_name", "").strip()
             parent_phone = request.form.get("parent_phone", "").strip()
             governorate = request.form.get("governorate", "الدقهلية").strip()
-            grade = request.form.get("grade", "")
+            grade = request.form.get("grade", "").strip()
             password = request.form.get("password", "")
 
-            if not all([full_name, phone, parent_name, parent_phone, grade, password]):
-                flash("يرجى إدخال الاسم الكامل، رقم الطالب، اسم ولي الأمر، رقم ولي الأمر، الصف الدراسي، وكلمة المرور.", "danger")
-                return redirect(url_for("auth"))
+            if not all([full_name, phone, parent_phone, grade, password]):
+                flash("يرجى إدخال اسم الطالب بالكامل، رقم هاتف الطالب، الصف الدراسي، رقم ولي الأمر، المحافظة، وكلمة المرور.", "danger")
+                return render_template("auth.html", mode="register")
 
             if phone == parent_phone:
                 flash("رقم هاتف ولي الأمر يجب أن يكون مختلفاً عن رقم هاتف الطالب.", "warning")
-                return redirect(url_for("auth"))
+                return render_template("auth.html", mode="register")
 
             if User.query.filter_by(phone=phone).first():
                 flash("رقم هاتف الطالب مسجل بالفعل، يمكنك تسجيل الدخول مباشرة.", "warning")
-                return redirect(url_for("auth"))
+                return render_template("auth.html", mode="login")
 
             settings = get_settings()
             token = uuid.uuid4().hex
             new_user = User(
                 full_name=full_name,
                 phone=phone,
-                parent_name=parent_name,
+                parent_name="",
                 parent_phone=parent_phone,
-                governorate=governorate,
+                governorate=governorate or "الدقهلية",
                 grade=grade,
                 password_hash=generate_password_hash(password),
                 role="student",
@@ -465,7 +485,7 @@ def auth():
             flash("تم إنشاء حسابك بنجاح! مرحباً بك في منصة مستر أحمد جمال.", "success")
             return redirect(url_for("student_dashboard"))
 
-    return render_template("auth.html")
+    return render_template("auth.html", mode=mode)
 
 
 @app.route("/logout")
@@ -475,7 +495,7 @@ def logout():
     return redirect(url_for("index"))
 
 
-# ===================== لوحة الطالب وتحديد المستوى التلقائي =====================
+# ===================== لوحة الطالب =====================
 
 @app.route("/student")
 @login_required
@@ -484,38 +504,77 @@ def student_dashboard():
     if user.role == "admin":
         return redirect(url_for("admin_dashboard"))
 
+    tab = request.args.get("tab", "overview")
     weeks = Week.query.filter_by(grade=user.grade, is_published=True).order_by(Week.order_num.asc()).all()
     unlocked_ids = {e.week_id for e in Enrollment.query.filter_by(user_id=user.id).all()}
     watched_ids = {p.content_id for p in VideoProgress.query.filter_by(user_id=user.id).all()}
 
+    week_access_map = {}
+    for w in weeks:
+        has_sub = bool(w.is_free or user.is_active or (w.id in unlocked_ids))
+        exam_ok, lock_reason = is_week_unlocked_by_exam(user.id, w)
+        week_access_map[w.id] = {
+            "has_sub": has_sub,
+            "exam_ok": exam_ok,
+            "can_open": has_sub and exam_ok,
+            "lock_reason": lock_reason
+        }
+
     selected_week_id = request.args.get("week_id", type=int)
     active_week = None
-    can_access = False
+    active_week_info = None
+    grouped_contents = {k: [] for k, _ in CONTENT_SECTIONS}
 
     if selected_week_id:
         active_week = db.session.get(Week, selected_week_id)
         if not active_week:
             return redirect(url_for("student_dashboard"))
-        if active_week.is_free or user.is_active or (active_week.id in unlocked_ids):
-            can_access = True
+        has_sub = bool(active_week.is_free or user.is_active or (active_week.id in unlocked_ids))
+        exam_ok, lock_reason = is_week_unlocked_by_exam(user.id, active_week)
+        active_week_info = {
+            "has_sub": has_sub,
+            "exam_ok": exam_ok,
+            "can_open": has_sub and exam_ok,
+            "lock_reason": lock_reason
+        }
+        if active_week_info["can_open"]:
+            for item in active_week.contents:
+                sec = item.section_key if item.section_key in grouped_contents else "explanation"
+                grouped_contents[sec].append(item)
 
     exams = Exam.query.filter_by(grade=user.grade).order_by(Exam.created_at.desc()).all()
     results = ExamResult.query.filter_by(user_id=user.id).order_by(ExamResult.submitted_at.desc()).all()
     results_by_exam = {r.exam_id: r for r in results}
     level_info = evaluate_student_level(user)
 
+    centers = CenterBranch.query.filter(
+        (CenterBranch.grade == "") | (CenterBranch.grade == None) | (CenterBranch.grade == user.grade)
+    ).order_by(CenterBranch.created_at.desc()).all()
+
+    announcements = Announcement.query.filter(
+        (Announcement.grade == "") | (Announcement.grade == None) | (Announcement.grade == user.grade)
+    ).order_by(Announcement.created_at.desc()).limit(15).all()
+
+    subscribed_weeks = [w for w in weeks if w.is_free or user.is_active or (w.id in unlocked_ids)]
+
     return render_template(
         "student.html",
         user=user,
+        tab=tab,
         weeks=weeks,
+        subscribed_weeks=subscribed_weeks,
         unlocked_ids=unlocked_ids,
         watched_ids=watched_ids,
+        week_access_map=week_access_map,
         active_week=active_week,
-        can_access=can_access,
+        active_week_info=active_week_info,
+        grouped_contents=grouped_contents,
         exams=exams,
         results=results,
         results_by_exam=results_by_exam,
         level_info=level_info,
+        centers=centers,
+        announcements=announcements,
         format_embed_url=format_embed_url
     )
 
@@ -531,7 +590,7 @@ def mark_watched(content_id):
     if not existing:
         db.session.add(VideoProgress(user_id=user.id, content_id=content.id))
         db.session.commit()
-    flash(f"تم تسجيل مشاهدة ({content.title}) وتحديث مستواك تلقائياً.", "success")
+    flash(f"تم تسجيل مشاهدة ({content.title}) وتحديث مستواك.", "success")
     return redirect(url_for("student_dashboard", week_id=content.week_id))
 
 
@@ -547,7 +606,7 @@ def redeem_code():
         return redirect(url_for("student_dashboard"))
 
     if code_obj.grade != user.grade:
-        flash(f"هذا الكود خاص بـ ({code_obj.grade}) وليس بصفك الدراسي.", "warning")
+        flash(f"هذا الكود خاص بـ ({code_obj.grade}) وليس بصفك الدراسي ({user.grade}).", "warning")
         return redirect(url_for("student_dashboard"))
 
     code_obj.is_used = True
@@ -558,10 +617,10 @@ def redeem_code():
         exists = Enrollment.query.filter_by(user_id=user.id, week_id=code_obj.week_id).first()
         if not exists:
             db.session.add(Enrollment(user_id=user.id, week_id=code_obj.week_id))
-        flash("تم فتح الأسبوع بنجاح!", "success")
+        flash("تم تفعيل الباقة/الأسبوع بنجاح!", "success")
     else:
         user.is_active = True
-        flash("تم تفعيل اشتراكك الكامل بنجاح!", "success")
+        flash("تم تفعيل حسابك واشتراكك بنجاح!", "success")
 
     db.session.commit()
     return redirect(url_for("student_dashboard"))
@@ -608,7 +667,7 @@ def take_exam(exam_id):
     return render_template("exam.html", exam=exam, user=user)
 
 
-# ===================== لوحة تحكم المدرس المتقسمة بالصفوف =====================
+# ===================== لوحة الإدارة =====================
 
 @app.route("/admin")
 @admin_required
@@ -642,8 +701,13 @@ def admin_dashboard():
     students_data = [{"user": s, "level": evaluate_student_level(s)} for s in students_raw]
 
     weeks = weeks_query.order_by(Week.grade.asc(), Week.order_num.asc()).all()
+    all_weeks = Week.query.order_by(Week.grade.asc(), Week.order_num.asc()).all()
     exams = exams_query.order_by(Exam.created_at.desc()).all()
-    codes = AccessCode.query.order_by(AccessCode.created_at.desc()).limit(50).all()
+    all_exams = Exam.query.order_by(Exam.created_at.desc()).all()
+    exams_map = {e.id: e.title for e in all_exams}
+    codes = AccessCode.query.order_by(AccessCode.created_at.desc()).limit(100).all()
+    centers = CenterBranch.query.order_by(CenterBranch.created_at.desc()).all()
+    announcements = Announcement.query.order_by(Announcement.created_at.desc()).limit(30).all()
 
     results_query = ExamResult.query.join(User)
     if selected_grade:
@@ -656,8 +720,13 @@ def admin_dashboard():
         grade_summary=grade_summary,
         students_data=students_data,
         weeks=weeks,
+        all_weeks=all_weeks,
         exams=exams,
+        all_exams=all_exams,
+        exams_map=exams_map,
         codes=codes,
+        centers=centers,
+        announcements=announcements,
         exam_results=exam_results
     )
 
@@ -670,15 +739,27 @@ def update_settings():
     settings.teacher_name = request.form.get("teacher_name", settings.teacher_name)
     settings.teacher_bio = request.form.get("teacher_bio", settings.teacher_bio)
     settings.whatsapp_number = request.form.get("whatsapp_number", settings.whatsapp_number)
+    settings.facebook_url = request.form.get("facebook_url", settings.facebook_url or "").strip()
+    settings.instagram_url = request.form.get("instagram_url", settings.instagram_url or "").strip()
+    settings.tiktok_url = request.form.get("tiktok_url", settings.tiktok_url or "").strip()
+    settings.youtube_url = request.form.get("youtube_url", settings.youtube_url or "").strip()
     settings.auto_activate_students = True if request.form.get("auto_activate_students") else False
+
+    req_pct = request.form.get("pass_percentage_required", type=float)
+    if req_pct is not None and 0 <= req_pct <= 100:
+        settings.pass_percentage_required = req_pct
 
     img = request.files.get("teacher_image")
     if img and img.filename:
         settings.teacher_image = save_uploaded_file(img, UPLOAD_IMAGES, "/static/uploads/images")
 
+    admin_user = db.session.get(User, session["user_id"])
+    new_admin_username = request.form.get("new_admin_username", "").strip()
+    if new_admin_username and admin_user:
+        admin_user.username = new_admin_username
+
     new_admin_pass = request.form.get("new_admin_pass", "").strip()
-    if new_admin_pass:
-        admin_user = db.session.get(User, session["user_id"])
+    if new_admin_pass and admin_user:
         admin_user.password_hash = generate_password_hash(new_admin_pass)
 
     db.session.commit()
@@ -691,10 +772,11 @@ def update_settings():
 def add_week():
     title = request.form.get("title", "").strip()
     description = request.form.get("description", "").strip()
-    grade = request.form.get("grade", "")
+    grade = request.form.get("grade", "").strip()
     order_num = request.form.get("order_num", 1, type=int)
-    price = request.form.get("price", 50, type=int)
+    price = request.form.get("price", 0, type=int)
     is_free = True if request.form.get("is_free") else False
+    prereq_exam_id = request.form.get("prerequisite_exam_id", type=int)
 
     cover_path = save_uploaded_file(request.files.get("cover_image"), UPLOAD_IMAGES, "/static/uploads/images")
 
@@ -705,7 +787,8 @@ def add_week():
         order_num=order_num,
         price=price,
         is_free=is_free,
-        cover_image=cover_path
+        cover_image=cover_path,
+        prerequisite_exam_id=prereq_exam_id if prereq_exam_id and prereq_exam_id > 0 else None
     )
     db.session.add(week)
     db.session.commit()
@@ -720,7 +803,7 @@ def toggle_week(week_id):
     if week:
         week.is_published = not week.is_published
         db.session.commit()
-        flash("تم تحديث حالة نشر الدرس/الأسبوع.", "success")
+        flash("تم تحديث حالة نشر الباقة/الأسبوع.", "success")
         return redirect(url_for("admin_dashboard", grade=week.grade))
     return redirect(url_for("admin_dashboard"))
 
@@ -733,7 +816,7 @@ def delete_week(week_id):
     if week:
         db.session.delete(week)
         db.session.commit()
-        flash("تم حذف الدرس/الأسبوع ومحتوياته.", "info")
+        flash("تم حذف الباقة/الأسبوع ومحتوياته.", "info")
     return redirect(url_for("admin_dashboard", grade=g))
 
 
@@ -745,7 +828,10 @@ def add_content():
     if not week:
         return redirect(url_for("admin_dashboard"))
     title = request.form.get("title", "").strip()
-    content_type = request.form.get("content_type", "")
+    section_key = request.form.get("section_key", "explanation").strip()
+    if section_key not in dict(CONTENT_SECTIONS):
+        section_key = "explanation"
+    content_type = request.form.get("content_type", "").strip()
     duration_or_notes = request.form.get("duration_or_notes", "").strip()
     order_num = request.form.get("order_num", 1, type=int)
 
@@ -764,6 +850,7 @@ def add_content():
     content = WeekContent(
         week_id=week_id,
         title=title,
+        section_key=section_key,
         content_type=content_type,
         source_path=source_path,
         duration_or_notes=duration_or_notes,
@@ -771,7 +858,7 @@ def add_content():
     )
     db.session.add(content)
     db.session.commit()
-    flash("تم إضافة المحتوى بنجاح.", "success")
+    flash("تم إضافة المحتوى داخل القسم المحدد بنجاح.", "success")
     return redirect(url_for("admin_dashboard", grade=week.grade))
 
 
@@ -791,7 +878,7 @@ def delete_content(content_id):
 @admin_required
 def add_exam():
     title = request.form.get("title", "").strip()
-    grade = request.form.get("grade", "")
+    grade = request.form.get("grade", "").strip()
     week_id = request.form.get("week_id", type=int)
     duration_minutes = request.form.get("duration_minutes", 20, type=int)
 
@@ -863,7 +950,7 @@ def toggle_student(student_id):
 @app.route("/admin/codes/generate", methods=["POST"])
 @admin_required
 def generate_codes():
-    grade = request.form.get("grade", "")
+    grade = request.form.get("grade", "").strip()
     week_id = request.form.get("week_id", type=int)
     count = min(request.form.get("count", 10, type=int), 100)
 
@@ -880,24 +967,90 @@ def generate_codes():
     return redirect(url_for("admin_dashboard", grade=grade))
 
 
+@app.route("/admin/codes/delete/<int:code_id>", methods=["POST"])
+@admin_required
+def delete_code(code_id):
+    code_obj = db.session.get(AccessCode, code_id)
+    g = code_obj.grade if code_obj else ""
+    if code_obj:
+        db.session.delete(code_obj)
+        db.session.commit()
+        flash("تم حذف الكود.", "info")
+    return redirect(url_for("admin_dashboard", grade=g))
+
+
+@app.route("/admin/codes/delete-unused", methods=["POST"])
+@admin_required
+def delete_unused_codes():
+    grade = request.form.get("grade", "").strip()
+    q = AccessCode.query.filter_by(is_used=False)
+    if grade:
+        q = q.filter_by(grade=grade)
+    deleted_count = q.delete(synchronize_session=False)
+    db.session.commit()
+    flash(f"تم حذف {deleted_count} كود غير مستخدم.", "info")
+    return redirect(url_for("admin_dashboard", grade=grade))
+
+
+@app.route("/admin/center/add", methods=["POST"])
+@admin_required
+def add_center():
+    name = request.form.get("name", "").strip()
+    address = request.form.get("address", "").strip()
+    schedule_notes = request.form.get("schedule_notes", "").strip()
+    grade = request.form.get("grade", "").strip()
+    if name:
+        db.session.add(CenterBranch(name=name, address=address, schedule_notes=schedule_notes, grade=grade))
+        db.session.commit()
+        flash("تم إضافة المركز/الفرع بنجاح.", "success")
+    return redirect(url_for("admin_dashboard", grade=grade))
+
+
+@app.route("/admin/center/delete/<int:center_id>", methods=["POST"])
+@admin_required
+def delete_center(center_id):
+    center = db.session.get(CenterBranch, center_id)
+    if center:
+        db.session.delete(center)
+        db.session.commit()
+        flash("تم حذف المركز/الفرع.", "info")
+    return redirect(url_for("admin_dashboard"))
+
+
+@app.route("/admin/announcement/add", methods=["POST"])
+@admin_required
+def add_announcement():
+    title = request.form.get("title", "").strip()
+    message = request.form.get("message", "").strip()
+    grade = request.form.get("grade", "").strip()
+    if title and message:
+        db.session.add(Announcement(title=title, message=message, grade=grade))
+        db.session.commit()
+        flash("تم نشر الإشعار للطلاب بنجاح.", "success")
+    return redirect(url_for("admin_dashboard", grade=grade))
+
+
+@app.route("/admin/announcement/delete/<int:ann_id>", methods=["POST"])
+@admin_required
+def delete_announcement(ann_id):
+    ann = db.session.get(Announcement, ann_id)
+    if ann:
+        db.session.delete(ann)
+        db.session.commit()
+        flash("تم حذف الإشعار.", "info")
+    return redirect(url_for("admin_dashboard"))
+
+
 @app.errorhandler(500)
 def internal_error(error):
     try:
         db.session.rollback()
     except Exception:
         pass
-    return render_template(
-        "index.html",
-        weeks=[],
-        selected_grade="",
-        grade_counts={g: 0 for g in GRADES},
-        students_count=0,
-        videos_count=0,
-        exams_count=0
-    ), 500
+    return render_template("index.html"), 500
 
 
-# ===================== تهيئة قاعدة البيانات وحساب المدرس لـ Vercel و Supabase =====================
+# ===================== تهيئة قاعدة البيانات وحساب الأدمن =====================
 
 _db_initialized = False
 
