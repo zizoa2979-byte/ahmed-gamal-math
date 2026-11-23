@@ -10,6 +10,7 @@ from flask import (
     session, flash
 )
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
@@ -219,6 +220,26 @@ class Announcement(db.Model):
     message = db.Column(db.Text, nullable=False)
     grade = db.Column(db.String(80), default="")
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+def ensure_schema_columns():
+    alter_statements = [
+        "ALTER TABLE platform_settings ADD COLUMN IF NOT EXISTS facebook_url VARCHAR(300) DEFAULT ''",
+        "ALTER TABLE platform_settings ADD COLUMN IF NOT EXISTS instagram_url VARCHAR(300) DEFAULT ''",
+        "ALTER TABLE platform_settings ADD COLUMN IF NOT EXISTS tiktok_url VARCHAR(300) DEFAULT ''",
+        "ALTER TABLE platform_settings ADD COLUMN IF NOT EXISTS youtube_url VARCHAR(300) DEFAULT ''",
+        "ALTER TABLE platform_settings ADD COLUMN IF NOT EXISTS auto_activate_students BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE platform_settings ADD COLUMN IF NOT EXISTS pass_percentage_required FLOAT DEFAULT 50.0",
+    ]
+    for stmt in alter_statements:
+        try:
+            with db.engine.begin() as conn:
+                conn.execute(text(stmt))
+        except Exception:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
 
 
 def _sanitize_settings_obj(settings):
@@ -446,7 +467,17 @@ def inject_globals():
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    students_by_grade = {g: [] for g in GRADES}
+    try:
+        for g in GRADES:
+            g_students_raw = User.query.filter_by(role="student", grade=g).order_by(User.created_at.desc()).all()
+            students_by_grade[g] = [{"user": s, "level": evaluate_student_level(s)} for s in g_students_raw]
+    except Exception:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+    return render_template("index.html", students_by_grade=students_by_grade)
 
 
 @app.route("/auth", methods=["GET", "POST"])
@@ -1141,7 +1172,11 @@ def internal_error(error):
         db.session.rollback()
     except Exception:
         pass
-    return render_template("index.html"), 500
+    return (
+        "<html lang='ar' dir='rtl'><body style='background:#071324;color:#fff;font-family:sans-serif;text-align:center;padding:50px;'>"
+        "<h3>حدث خطأ مؤقت في الخادم</h3><p><a href='/' style='color:#38bdf8;'>العودة للرئيسية</a></p></body></html>",
+        500,
+    )
 
 
 _db_initialized = False
@@ -1153,6 +1188,7 @@ def init_db():
         return
     try:
         db.create_all()
+        ensure_schema_columns()
         settings = PlatformSettings.query.first()
         if not settings:
             settings = PlatformSettings()
