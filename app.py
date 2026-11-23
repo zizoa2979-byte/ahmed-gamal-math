@@ -804,28 +804,23 @@ def admin_dashboard():
     show_login_modal = bool(session.pop("login_success_modal", False))
 
     try:
-        all_students_raw = User.query.filter_by(role="student").order_by(User.created_at.desc()).all()
+        all_students_raw = User.query.filter(User.role != "admin").order_by(User.created_at.desc()).all()
         pending_students = [s for s in all_students_raw if not s.is_active]
 
         students_by_grade = {}
-        grade_summary = []
+        matched_ids = set()
 
         for g in GRADES:
             g_students_raw = [s for s in all_students_raw if (s.grade or "").strip() == g]
-            g_students_enriched = [{"user": s, "level": evaluate_student_level(s)} for s in g_students_raw]
-            students_by_grade[g] = g_students_enriched
+            for s in g_students_raw:
+                matched_ids.add(s.id)
+            students_by_grade[g] = [{"user": s, "level": evaluate_student_level(s)} for s in g_students_raw]
 
-            g_weeks_count = Week.query.filter_by(grade=g).count()
-            g_exams_count = Exam.query.filter_by(grade=g).count()
-            avg_lvl = round(sum(item["level"]["overall"] for item in g_students_enriched) / len(g_students_enriched), 1) if g_students_enriched else 0.0
-            grade_summary.append({
-                "grade": g,
-                "students_count": len(g_students_enriched),
-                "pending_count": len([s for s in g_students_raw if not s.is_active]),
-                "weeks_count": g_weeks_count,
-                "exams_count": g_exams_count,
-                "avg_level": avg_lvl
-            })
+        other_students = [s for s in all_students_raw if s.id not in matched_ids]
+        if other_students:
+            students_by_grade["صفوف أخرى / غير محدد"] = [
+                {"user": s, "level": evaluate_student_level(s)} for s in other_students
+            ]
 
         if selected_grade:
             students_raw = [s for s in all_students_raw if (s.grade or "").strip() == selected_grade]
@@ -856,7 +851,6 @@ def admin_dashboard():
         flash(f"حدث تنبيه أثناء تحميل بعض بيانات الإدارة: {exc}", "warning")
         pending_students = []
         students_by_grade = {g: [] for g in GRADES}
-        grade_summary = []
         students_data = []
         weeks = []
         all_weeks = []
@@ -874,7 +868,6 @@ def admin_dashboard():
         show_login_modal=show_login_modal,
         pending_students=pending_students,
         students_by_grade=students_by_grade,
-        grade_summary=grade_summary,
         students_data=students_data,
         weeks=weeks,
         all_weeks=all_weeks,
