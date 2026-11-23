@@ -1,4 +1,5 @@
 import os
+import csv
 import uuid
 import random
 import string
@@ -7,7 +8,7 @@ from functools import wraps
 from urllib.parse import quote, urlparse, parse_qsl, urlencode, urlunparse
 from flask import (
     Flask, render_template, request, redirect, url_for,
-    session, flash
+    session, flash, send_file, Response
 )
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import text
@@ -57,14 +58,18 @@ app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024
 is_vercel = bool(os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV"))
 if is_vercel:
     BASE_UPLOAD_DIR = "/tmp/uploads"
+    EXTERNAL_BACKUP_DIR = "/tmp/ahmed_gamal_backups"
 else:
     BASE_UPLOAD_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), "static", "uploads")
+    desktop_dir = os.path.join(os.path.expanduser("~"), "Desktop")
+    parent_backup_root = desktop_dir if os.path.isdir(desktop_dir) else os.path.expanduser("~")
+    EXTERNAL_BACKUP_DIR = os.path.join(parent_backup_root, "AhmedGamalBackups")
 
 UPLOAD_VIDEOS = os.path.join(BASE_UPLOAD_DIR, "videos")
 UPLOAD_FILES = os.path.join(BASE_UPLOAD_DIR, "files")
 UPLOAD_IMAGES = os.path.join(BASE_UPLOAD_DIR, "images")
 
-for folder in [UPLOAD_VIDEOS, UPLOAD_FILES, UPLOAD_IMAGES]:
+for folder in [UPLOAD_VIDEOS, UPLOAD_FILES, UPLOAD_IMAGES, EXTERNAL_BACKUP_DIR]:
     try:
         os.makedirs(folder, exist_ok=True)
     except Exception:
@@ -220,6 +225,94 @@ class Announcement(db.Model):
     message = db.Column(db.Text, nullable=False)
     grade = db.Column(db.String(80), default="")
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+def sync_excel_backup():
+    try:
+        os.makedirs(EXTERNAL_BACKUP_DIR, exist_ok=True)
+    except Exception:
+        return None
+
+    students = (
+        User.query.filter((User.role != "admin") | (User.role.is_(None)))
+        .order_by(User.id.asc())
+        .all()
+    )
+    results = ExamResult.query.order_by(ExamResult.id.asc()).all()
+    exams_map = {e.id: e.title for e in Exam.query.all()}
+    users_map = {u.id: u for u in students}
+
+    student_headers = [
+        "ID", "الاسم الكامل", "رقم هاتف الطالب", "رقم هاتف ولي الأمر",
+        "المحافظة", "الصف الدراسي", "مفعل", "تاريخ التسجيل"
+    ]
+    student_rows = [
+        [
+            s.id,
+            s.full_name or "",
+            s.phone or "",
+            s.parent_phone or "",
+            s.governorate or "",
+            s.grade or "",
+            "نعم" if s.is_active else "لا",
+            s.created_at.strftime("%Y-%m-%d %H:%M") if s.created_at else ""
+        ]
+        for s in students
+    ]
+
+    result_headers = [
+        "Result ID", "اسم الطالب", "رقم الهاتف", "الصف الدراسي",
+        "اسم الامتحان", "الدرجة", "الإجمالي", "النسبة المئوية", "تاريخ التسليم"
+    ]
+    result_rows = []
+    for r in results:
+        st = users_map.get(r.user_id) or db.session.get(User, r.user_id)
+        result_rows.append([
+            r.id,
+            st.full_name if st else f"طالب #{r.user_id}",
+            st.phone if st else "",
+            st.grade if st else "",
+            exams_map.get(r.exam_id, f"امتحان #{r.exam_id}"),
+            r.score,
+            r.total_questions,
+            f"{r.percentage}%",
+            r.submitted_at.strftime("%Y-%m-%d %H:%M") if r.submitted_at else ""
+        ])
+
+    xlsx_path = os.path.join(EXTERNAL_BACKUP_DIR, "ahmed_gamal_data_backup.xlsx")
+    try:
+        import openpyxl  # type: ignore
+        wb = openpyxl.Workbook()
+
+        ws_students = wb.active
+        ws_students.title = "الطلاب"
+        ws_students.append(student_headers)
+        for row in student_rows:
+            ws_students.append(row)
+
+        ws_results = wb.create_sheet(title="نتائج الامتحانات")
+        ws_results.append(result_headers)
+        for row in result_rows:
+            ws_results.append(row)
+
+        wb.save(xlsx_path)
+        return xlsx_path
+    except Exception:
+        students_csv = os.path.join(EXTERNAL_BACKUP_DIR, "students_backup.csv")
+        results_csv = os.path.join(EXTERNAL_BACKUP_DIR, "exam_results_backup.csv")
+        try:
+            with open(students_csv, "w", newline="", encoding="utf-8-sig") as f:
+                writer = csv.writer(f)
+                writer.writerow(student_headers)
+                writer.writerows(student_rows)
+
+            with open(results_csv, "w", newline="", encoding="utf-8-sig") as f:
+                writer = csv.writer(f)
+                writer.writerow(result_headers)
+                writer.writerows(result_rows)
+            return students_csv
+        except Exception:
+            return None
 
 
 def ensure_schema_columns():
@@ -519,6 +612,37 @@ def index():
     return render_template("index.html", centers=centers, announcements=announcements)
 
 
+@app.route("/robots.txt")
+def robots_txt():
+    sitemap_url = url_for("sitemap_xml", _external=True)
+    content = (
+        "User-agent: *\n"
+        "Allow: /\n"
+        "Disallow: /admin\n"
+        "Disallow: /student\n"
+        "Disallow: /auth\n"
+        "Disallow: /exam\n"
+        f"Sitemap: {sitemap_url}\n"
+    )
+    return Response(content, mimetype="text/plain; charset=utf-8")
+
+
+@app.route("/sitemap.xml")
+def sitemap_xml():
+    base_url = url_for("index", _external=True).rstrip("/")
+    xml_body = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        "  <url>\n"
+        f"    <loc>{base_url}/</loc>\n"
+        "    <changefreq>daily</changefreq>\n"
+        "    <priority>1.0</priority>\n"
+        "  </url>\n"
+        "</urlset>\n"
+    )
+    return Response(xml_body, mimetype="application/xml; charset=utf-8")
+
+
 @app.route("/auth", methods=["GET", "POST"])
 def auth():
     mode = request.args.get("mode", "login")
@@ -591,6 +715,7 @@ def auth():
             )
             db.session.add(new_user)
             db.session.commit()
+            sync_excel_backup()
 
             session["user_id"] = new_user.id
             session["session_token"] = token
@@ -640,6 +765,7 @@ def complete_onboarding():
     user.governorate = governorate
     user.grade = grade
     db.session.commit()
+    sync_excel_backup()
     flash("تم حفظ بيانات الـ Onboarding بنجاح.", "success")
     return redirect(url_for("student_dashboard"))
 
@@ -832,6 +958,7 @@ def redeem_code():
         flash("تم تفعيل حسابك واشتراكك بنجاح!", "success")
 
     db.session.commit()
+    sync_excel_backup()
     return redirect(url_for("student_dashboard"))
 
 
@@ -873,6 +1000,7 @@ def take_exam(exam_id):
                 percentage=pct
             ))
         db.session.commit()
+        sync_excel_backup()
         flash(f"تم تسليم الامتحان! درجتك: {correct} من {total} ({pct}%).", "success")
         return redirect(url_for("student_dashboard"))
 
@@ -965,6 +1093,16 @@ def admin_dashboard():
         announcements=announcements,
         exam_results=exam_results
     )
+
+
+@app.route("/admin/backup/excel")
+@admin_required
+def download_excel_backup():
+    saved_path = sync_excel_backup()
+    if saved_path and os.path.exists(saved_path):
+        return send_file(saved_path, as_attachment=True, download_name=os.path.basename(saved_path))
+    flash("تعذر إنشاء ملف النسخة الاحتياطية حالياً.", "warning")
+    return redirect(url_for("admin_dashboard"))
 
 
 @app.route("/admin/settings", methods=["POST"])
@@ -1202,6 +1340,7 @@ def toggle_student(student_id):
     if student:
         student.is_active = not student.is_active
         db.session.commit()
+        sync_excel_backup()
         flash(f"تم تحديث حالة الحساب ({student.full_name}).", "success")
         return redirect(url_for("admin_dashboard", grade=student.grade))
     return redirect(url_for("admin_dashboard"))
