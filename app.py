@@ -309,104 +309,129 @@ def clean_wa_phone(phone):
 
 
 def is_week_unlocked_by_exam(user_id, week):
-    if not week.prerequisite_exam_id:
+    try:
+        if not week.prerequisite_exam_id:
+            return True, ""
+        settings = get_settings()
+        req_pct = settings.pass_percentage_required if settings.pass_percentage_required is not None else 50.0
+        best_res = ExamResult.query.filter_by(user_id=user_id, exam_id=week.prerequisite_exam_id).order_by(ExamResult.percentage.desc()).first()
+        if best_res and best_res.percentage >= req_pct:
+            return True, ""
+        prereq_exam = db.session.get(Exam, week.prerequisite_exam_id)
+        exam_name = prereq_exam.title if prereq_exam else "الاختبار السابق"
+        return False, f"هذا المحتوى مغلق حتى النجاح في ({exam_name}) بنسبة {req_pct}% على الأقل."
+    except Exception:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
         return True, ""
-    settings = get_settings()
-    req_pct = settings.pass_percentage_required if settings.pass_percentage_required is not None else 50.0
-    best_res = ExamResult.query.filter_by(user_id=user_id, exam_id=week.prerequisite_exam_id).order_by(ExamResult.percentage.desc()).first()
-    if best_res and best_res.percentage >= req_pct:
-        return True, ""
-    prereq_exam = db.session.get(Exam, week.prerequisite_exam_id)
-    exam_name = prereq_exam.title if prereq_exam else "الاختبار السابق"
-    return False, f"هذا المحتوى مغلق حتى النجاح في ({exam_name}) بنسبة {req_pct}% على الأقل."
 
 
 def evaluate_student_level(student):
-    grade_weeks = Week.query.filter_by(grade=student.grade, is_published=True).all()
-    week_ids = [w.id for w in grade_weeks]
-
-    total_videos = 0
-    video_ids = []
-    if week_ids:
-        videos = WeekContent.query.filter(
-            WeekContent.week_id.in_(week_ids),
-            WeekContent.content_type.like("video%")
-        ).all()
-        total_videos = len(videos)
-        video_ids = [v.id for v in videos]
-
-    watched_count = 0
-    if video_ids:
-        watched_count = VideoProgress.query.filter(
-            VideoProgress.user_id == student.id,
-            VideoProgress.content_id.in_(video_ids)
-        ).count()
-
-    video_ratio = (watched_count / total_videos * 100.0) if total_videos > 0 else 0.0
-
-    grade_exams = Exam.query.filter_by(grade=student.grade).all()
-    total_exams = len(grade_exams)
-    exams_title_map = {e.id: e.title for e in grade_exams}
-    student_results = ExamResult.query.filter_by(user_id=student.id).order_by(ExamResult.submitted_at.desc()).all()
-
-    solved_exam_ids = {r.exam_id for r in student_results}
-    solved_count = len(solved_exam_ids)
-    exam_completion_ratio = (solved_count / total_exams * 100.0) if total_exams > 0 else 0.0
-
-    if student_results:
-        avg_score = sum(r.percentage for r in student_results) / len(student_results)
-    else:
-        avg_score = 0.0
-
-    if watched_count == 0 and solved_count == 0:
-        overall = 0.0
-    else:
-        w_part = video_ratio * 0.30 if total_videos > 0 else 0.0
-        e_part = exam_completion_ratio * 0.30 if total_exams > 0 else 0.0
-        s_part = avg_score * 0.40 if student_results else 0.0
-        overall = round(w_part + e_part + s_part, 1)
-
-    if watched_count == 0 and solved_count == 0:
-        label = "لم يبدأ بعد"
-        badge_class = "bg-secondary"
-    elif overall >= 85:
-        label = "متفوق وممتاز"
-        badge_class = "bg-info text-dark"
-    elif overall >= 70:
-        label = "جيد جداً"
-        badge_class = "bg-info text-dark"
-    elif overall >= 50:
-        label = "جيد"
-        badge_class = "bg-success"
-    else:
-        label = "يحتاج متابعة"
-        badge_class = "bg-secondary"
-
-    exam_details = []
-    for r in student_results:
-        ex_obj = db.session.get(Exam, r.exam_id)
-        ex_title = exams_title_map.get(r.exam_id) or (ex_obj.title if ex_obj else f"امتحان #{r.exam_id}")
-        exam_details.append({
-            "exam_title": ex_title,
-            "score": r.score,
-            "total": r.total_questions,
-            "percentage": r.percentage,
-            "submitted_at": r.submitted_at.strftime("%Y-%m-%d %H:%M") if r.submitted_at else "-"
-        })
-
-    return {
-        "overall": overall,
-        "label": label,
-        "badge_class": badge_class,
-        "watched_count": watched_count,
-        "total_videos": total_videos,
-        "video_pct": round(video_ratio, 1),
-        "solved_exams": solved_count,
-        "total_exams": total_exams,
-        "exam_pct": round(exam_completion_ratio, 1),
-        "avg_score": round(avg_score, 1),
-        "exam_details": exam_details
+    default_lvl = {
+        "overall": 0.0,
+        "label": "لم يبدأ بعد",
+        "badge_class": "bg-secondary",
+        "watched_count": 0,
+        "total_videos": 0,
+        "video_pct": 0.0,
+        "solved_exams": 0,
+        "total_exams": 0,
+        "exam_pct": 0.0,
+        "avg_score": 0.0,
+        "exam_details": []
     }
+    try:
+        grade_str = (student.grade or "").strip()
+        grade_weeks = Week.query.filter_by(grade=grade_str, is_published=True).all() if grade_str else []
+        week_ids = [w.id for w in grade_weeks]
+
+        total_videos = 0
+        video_ids = []
+        if week_ids:
+            videos = WeekContent.query.filter(
+                WeekContent.week_id.in_(week_ids),
+                WeekContent.content_type.like("video%")
+            ).all()
+            total_videos = len(videos)
+            video_ids = [v.id for v in videos]
+
+        watched_count = 0
+        if video_ids:
+            watched_count = VideoProgress.query.filter(
+                VideoProgress.user_id == student.id,
+                VideoProgress.content_id.in_(video_ids)
+            ).count()
+
+        video_ratio = (watched_count / total_videos * 100.0) if total_videos > 0 else 0.0
+
+        grade_exams = Exam.query.filter_by(grade=grade_str).all() if grade_str else []
+        total_exams = len(grade_exams)
+        exams_title_map = {e.id: e.title for e in grade_exams}
+        student_results = ExamResult.query.filter_by(user_id=student.id).order_by(ExamResult.submitted_at.desc()).all()
+
+        solved_exam_ids = {r.exam_id for r in student_results}
+        solved_count = len(solved_exam_ids)
+        exam_completion_ratio = (solved_count / total_exams * 100.0) if total_exams > 0 else 0.0
+
+        avg_score = (sum(r.percentage for r in student_results) / len(student_results)) if student_results else 0.0
+
+        if watched_count == 0 and solved_count == 0:
+            overall = 0.0
+        else:
+            w_part = video_ratio * 0.30 if total_videos > 0 else 0.0
+            e_part = exam_completion_ratio * 0.30 if total_exams > 0 else 0.0
+            s_part = avg_score * 0.40 if student_results else 0.0
+            overall = round(w_part + e_part + s_part, 1)
+
+        if watched_count == 0 and solved_count == 0:
+            label = "لم يبدأ بعد"
+            badge_class = "bg-secondary"
+        elif overall >= 85:
+            label = "متفوق وممتاز"
+            badge_class = "bg-info text-dark"
+        elif overall >= 70:
+            label = "جيد جداً"
+            badge_class = "bg-info text-dark"
+        elif overall >= 50:
+            label = "جيد"
+            badge_class = "bg-success"
+        else:
+            label = "يحتاج متابعة"
+            badge_class = "bg-secondary"
+
+        exam_details = []
+        for r in student_results:
+            ex_obj = db.session.get(Exam, r.exam_id)
+            ex_title = exams_title_map.get(r.exam_id) or (ex_obj.title if ex_obj else f"امتحان #{r.exam_id}")
+            exam_details.append({
+                "exam_title": ex_title,
+                "score": r.score,
+                "total": r.total_questions,
+                "percentage": r.percentage,
+                "submitted_at": r.submitted_at.strftime("%Y-%m-%d %H:%M") if r.submitted_at else "-"
+            })
+
+        return {
+            "overall": overall,
+            "label": label,
+            "badge_class": badge_class,
+            "watched_count": watched_count,
+            "total_videos": total_videos,
+            "video_pct": round(video_ratio, 1),
+            "solved_exams": solved_count,
+            "total_exams": total_exams,
+            "exam_pct": round(exam_completion_ratio, 1),
+            "avg_score": round(avg_score, 1),
+            "exam_details": exam_details
+        }
+    except Exception:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return default_lvl
 
 
 def login_required(f):
@@ -415,10 +440,17 @@ def login_required(f):
         if "user_id" not in session:
             flash("يرجى تسجيل الدخول أولاً.", "warning")
             return redirect(url_for("auth"))
-        user = db.session.get(User, session["user_id"])
+        try:
+            user = db.session.get(User, session["user_id"])
+        except Exception:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            user = None
         if not user or user.session_token != session.get("session_token"):
             session.clear()
-            flash("تم فتح الحساب من جهاز آخر، يرجى تسجيل الدخول مرة أخرى.", "danger")
+            flash("تم فتح الحساب من جهاز آخر أو انتهت الجلسة، يرجى تسجيل الدخول مرة أخرى.", "warning")
             return redirect(url_for("auth"))
         return f(*args, **kwargs)
     return decorated
@@ -430,7 +462,14 @@ def admin_required(f):
         if "user_id" not in session:
             flash("سجل دخولك بحساب الإدارة أولاً.", "warning")
             return redirect(url_for("auth"))
-        user = db.session.get(User, session["user_id"])
+        try:
+            user = db.session.get(User, session["user_id"])
+        except Exception:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            user = None
         if not user or user.session_token != session.get("session_token"):
             session.clear()
             flash("يرجى تسجيل الدخول مرة أخرى.", "warning")
@@ -603,104 +642,142 @@ def complete_onboarding():
 @app.route("/student")
 @login_required
 def student_dashboard():
-    user = db.session.get(User, session["user_id"])
-    if user.role == "admin":
-        return redirect(url_for("admin_dashboard"))
-
     show_login_modal = bool(session.pop("login_success_modal", False))
     force_onboarding = request.args.get("onboarding") == "1"
-    missing_profile = not all([user.full_name, user.phone, user.parent_phone, user.governorate, user.grade])
-    show_onboarding = bool(force_onboarding or missing_profile)
+    tab = request.args.get("tab", "overview")
+    selected_week_id = request.args.get("week_id", type=int)
 
-    if not user.is_active:
+    try:
+        user = db.session.get(User, session["user_id"])
+        if not user:
+            session.clear()
+            return redirect(url_for("auth"))
+        if user.role == "admin":
+            return redirect(url_for("admin_dashboard"))
+
+        missing_profile = not all([user.full_name, user.phone, user.parent_phone, user.governorate, user.grade])
+        show_onboarding = bool(force_onboarding or missing_profile)
+
+        if not user.is_active:
+            announcements = Announcement.query.filter(
+                (Announcement.grade == "") | (Announcement.grade == None) | (Announcement.grade == user.grade)
+            ).order_by(Announcement.created_at.desc()).limit(10).all()
+            return render_template(
+                "student.html",
+                user=user,
+                pending_approval=True,
+                show_onboarding=show_onboarding,
+                show_login_modal=show_login_modal,
+                announcements=announcements
+            )
+
+        weeks = Week.query.filter_by(grade=user.grade, is_published=True).order_by(Week.order_num.asc()).all() if user.grade else []
+        unlocked_ids = {e.week_id for e in Enrollment.query.filter_by(user_id=user.id).all()}
+        watched_ids = {p.content_id for p in VideoProgress.query.filter_by(user_id=user.id).all()}
+
+        week_access_map = {}
+        for w in weeks:
+            has_sub = bool(w.is_free or user.is_active or (w.id in unlocked_ids))
+            exam_ok, lock_reason = is_week_unlocked_by_exam(user.id, w)
+            week_access_map[w.id] = {
+                "has_sub": has_sub,
+                "exam_ok": exam_ok,
+                "can_open": has_sub and exam_ok,
+                "lock_reason": lock_reason
+            }
+
+        active_week = None
+        active_week_info = None
+        grouped_contents = {k: [] for k, _ in CONTENT_SECTIONS}
+
+        if selected_week_id:
+            active_week = db.session.get(Week, selected_week_id)
+            if active_week:
+                has_sub = bool(active_week.is_free or user.is_active or (active_week.id in unlocked_ids))
+                exam_ok, lock_reason = is_week_unlocked_by_exam(user.id, active_week)
+                active_week_info = {
+                    "has_sub": has_sub,
+                    "exam_ok": exam_ok,
+                    "can_open": has_sub and exam_ok,
+                    "lock_reason": lock_reason
+                }
+                if active_week_info["can_open"]:
+                    for item in active_week.contents:
+                        sec = item.section_key if item.section_key in grouped_contents else "explanation"
+                        grouped_contents[sec].append(item)
+
+        exams = Exam.query.filter_by(grade=user.grade).order_by(Exam.created_at.desc()).all() if user.grade else []
+        results = ExamResult.query.filter_by(user_id=user.id).order_by(ExamResult.submitted_at.desc()).all()
+        results_by_exam = {r.exam_id: r for r in results}
+        level_info = evaluate_student_level(user)
+
+        centers = CenterBranch.query.filter(
+            (CenterBranch.grade == "") | (CenterBranch.grade == None) | (CenterBranch.grade == user.grade)
+        ).order_by(CenterBranch.created_at.desc()).all()
+
         announcements = Announcement.query.filter(
             (Announcement.grade == "") | (Announcement.grade == None) | (Announcement.grade == user.grade)
-        ).order_by(Announcement.created_at.desc()).limit(10).all()
+        ).order_by(Announcement.created_at.desc()).limit(15).all()
+
+        subscribed_weeks = [w for w in weeks if w.is_free or user.is_active or (w.id in unlocked_ids)]
+
         return render_template(
             "student.html",
             user=user,
-            pending_approval=True,
+            pending_approval=False,
             show_onboarding=show_onboarding,
             show_login_modal=show_login_modal,
-            announcements=announcements
+            tab=tab,
+            weeks=weeks,
+            subscribed_weeks=subscribed_weeks,
+            unlocked_ids=unlocked_ids,
+            watched_ids=watched_ids,
+            week_access_map=week_access_map,
+            active_week=active_week,
+            active_week_info=active_week_info,
+            grouped_contents=grouped_contents,
+            exams=exams,
+            results=results,
+            results_by_exam=results_by_exam,
+            level_info=level_info,
+            centers=centers,
+            announcements=announcements,
+            format_embed_url=format_embed_url
         )
-
-    tab = request.args.get("tab", "overview")
-    weeks = Week.query.filter_by(grade=user.grade, is_published=True).order_by(Week.order_num.asc()).all()
-    unlocked_ids = {e.week_id for e in Enrollment.query.filter_by(user_id=user.id).all()}
-    watched_ids = {p.content_id for p in VideoProgress.query.filter_by(user_id=user.id).all()}
-
-    week_access_map = {}
-    for w in weeks:
-        has_sub = bool(w.is_free or user.is_active or (w.id in unlocked_ids))
-        exam_ok, lock_reason = is_week_unlocked_by_exam(user.id, w)
-        week_access_map[w.id] = {
-            "has_sub": has_sub,
-            "exam_ok": exam_ok,
-            "can_open": has_sub and exam_ok,
-            "lock_reason": lock_reason
-        }
-
-    selected_week_id = request.args.get("week_id", type=int)
-    active_week = None
-    active_week_info = None
-    grouped_contents = {k: [] for k, _ in CONTENT_SECTIONS}
-
-    if selected_week_id:
-        active_week = db.session.get(Week, selected_week_id)
-        if not active_week:
-            return redirect(url_for("student_dashboard"))
-        has_sub = bool(active_week.is_free or user.is_active or (active_week.id in unlocked_ids))
-        exam_ok, lock_reason = is_week_unlocked_by_exam(user.id, active_week)
-        active_week_info = {
-            "has_sub": has_sub,
-            "exam_ok": exam_ok,
-            "can_open": has_sub and exam_ok,
-            "lock_reason": lock_reason
-        }
-        if active_week_info["can_open"]:
-            for item in active_week.contents:
-                sec = item.section_key if item.section_key in grouped_contents else "explanation"
-                grouped_contents[sec].append(item)
-
-    exams = Exam.query.filter_by(grade=user.grade).order_by(Exam.created_at.desc()).all()
-    results = ExamResult.query.filter_by(user_id=user.id).order_by(ExamResult.submitted_at.desc()).all()
-    results_by_exam = {r.exam_id: r for r in results}
-    level_info = evaluate_student_level(user)
-
-    centers = CenterBranch.query.filter(
-        (CenterBranch.grade == "") | (CenterBranch.grade == None) | (CenterBranch.grade == user.grade)
-    ).order_by(CenterBranch.created_at.desc()).all()
-
-    announcements = Announcement.query.filter(
-        (Announcement.grade == "") | (Announcement.grade == None) | (Announcement.grade == user.grade)
-    ).order_by(Announcement.created_at.desc()).limit(15).all()
-
-    subscribed_weeks = [w for w in weeks if w.is_free or user.is_active or (w.id in unlocked_ids)]
-
-    return render_template(
-        "student.html",
-        user=user,
-        pending_approval=False,
-        show_onboarding=show_onboarding,
-        show_login_modal=show_login_modal,
-        tab=tab,
-        weeks=weeks,
-        subscribed_weeks=subscribed_weeks,
-        unlocked_ids=unlocked_ids,
-        watched_ids=watched_ids,
-        week_access_map=week_access_map,
-        active_week=active_week,
-        active_week_info=active_week_info,
-        grouped_contents=grouped_contents,
-        exams=exams,
-        results=results,
-        results_by_exam=results_by_exam,
-        level_info=level_info,
-        centers=centers,
-        announcements=announcements,
-        format_embed_url=format_embed_url
-    )
+    except Exception as exc:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        fallback_user = db.session.get(User, session.get("user_id")) if session.get("user_id") else None
+        if not fallback_user:
+            session.clear()
+            flash("حدث خطأ أثناء تحميل الجلسة، يرجى تسجيل الدخول مرة أخرى.", "warning")
+            return redirect(url_for("auth"))
+        flash(f"تم تحميل اللوحة الأساسية؛ حدث تنبيه أثناء قراءة بعض البيانات: {exc}", "warning")
+        return render_template(
+            "student.html",
+            user=fallback_user,
+            pending_approval=not bool(fallback_user.is_active),
+            show_onboarding=force_onboarding,
+            show_login_modal=show_login_modal,
+            tab=tab,
+            weeks=[],
+            subscribed_weeks=[],
+            unlocked_ids=set(),
+            watched_ids=set(),
+            week_access_map={},
+            active_week=None,
+            active_week_info=None,
+            grouped_contents={k: [] for k, _ in CONTENT_SECTIONS},
+            exams=[],
+            results=[],
+            results_by_exam={},
+            level_info=evaluate_student_level(fallback_user),
+            centers=[],
+            announcements=[],
+            format_embed_url=format_embed_url
+        )
 
 
 @app.route("/student/watch/<int:content_id>", methods=["POST"])
