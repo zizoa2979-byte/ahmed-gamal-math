@@ -413,7 +413,7 @@
         <div class="math-card h-100">
           <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-folder-plus me-1"></i> إضافة أسبوع / باقة جديدة</h2>
           <form method="POST" action="{{ url_for('add_week') }}" enctype="multipart/form-data" class="d-grid gap-2">
-            <input type="text" name="title" class="form-control" placeholder="عنوان الأسبوع أو الباقة (مثال: كتالوج المنصة)" required />
+            <input type="text" name="title" class="form-control" placeholder="عنوان الأسبوع أو الباقة (مثال: باقة كتالوج المنصة)" required />
             <textarea name="description" rows="2" class="form-control" placeholder="وصف مختصر"></textarea>
             <select name="grade" class="form-select" required>
               <option value="">اختر الصف الدراسي</option>
@@ -430,6 +430,8 @@
                 <input type="number" name="price" class="form-control" value="0" min="0" placeholder="السعر" />
               </div>
             </div>
+            <label class="form-label small mb-0">صورة الباقة / الأسبوع (اختياري)</label>
+            <input type="file" name="week_image" accept="image/*" class="form-control" />
             <label class="form-label small mb-0">فيديوهات مرفوعة (اختياري)</label>
             <input type="file" name="week_videos" accept="video/*" multiple class="form-control" />
             <div class="form-check">
@@ -483,12 +485,19 @@
       <div class="d-grid gap-2">
         {% for w in weeks %}
           <div class="sub-box d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <div>
-              <div class="fw-bold">
-                {{ w.title }} <span class="badge bg-secondary">{{ w.grade }}</span>
-                {% if w.is_free %}<span class="badge bg-success">مجانية / مفتوحة</span>{% endif %}
+            <div class="d-flex align-items-center gap-3">
+              {% if w.image_path %}
+                <img src="{{ w.image_path }}" alt="{{ w.title }}"
+                     class="rounded-3 border border-secondary"
+                     style="width: 68px; height: 48px; object-fit: cover;" />
+              {% endif %}
+              <div>
+                <div class="fw-bold">
+                  {{ w.title }} <span class="badge bg-secondary">{{ w.grade }}</span>
+                  {% if w.is_free %}<span class="badge bg-success">مجانية / مفتوحة</span>{% endif %}
+                </div>
+                <div class="small text-secondary">عدد المحتويات: {{ w.contents|length }} • الترتيب: {{ w.order_num }}</div>
               </div>
-              <div class="small text-secondary">عدد المحتويات: {{ w.contents|length }} • الترتيب: {{ w.order_num }}</div>
             </div>
             <div class="d-flex gap-2">
               <form method="POST" action="{{ url_for('toggle_week', week_id=w.id) }}">
