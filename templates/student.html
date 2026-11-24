@@ -10,7 +10,6 @@
     :root {
       --bg-canvas: #06111f;
       --bg-surface: #0c1f38;
-      --bg-elevated: #122c4f;
       --brand-primary: #0ea5e9;
       --brand-secondary: #10b981;
       --line-subtle: rgba(148, 163, 184, 0.14);
@@ -28,69 +27,47 @@
       flex-direction: column;
     }
     .student-topbar {
-      background: linear-gradient(90deg, #059669 0%, #0d9488 55%, #0284c7 100%);
+      background: linear-gradient(90deg, #075985 0%, #0284c7 55%, #059669 100%);
       border-radius: 999px;
       padding: 10px 18px;
       margin: 14px auto 22px;
-      box-shadow: 0 12px 28px rgba(5, 150, 105, 0.25);
-      border: 1px solid rgba(255, 255, 255, 0.18);
+      box-shadow: 0 12px 28px rgba(2, 132, 199, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.16);
     }
     .math-card {
-      position: relative;
-      overflow: hidden;
       background-color: var(--bg-surface);
       border: 1px solid var(--line-subtle);
       border-radius: 20px;
       padding: 20px;
-      box-shadow: 0 12px 26px rgba(0, 0, 0, 0.25);
+      box-shadow: 0 12px 26px rgba(0, 0, 0, 0.24);
     }
-    .stat-tile {
-      border-radius: 18px;
-      padding: 18px;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      height: 100%;
+    .sub-box {
+      background: #071526;
+      border: 1px solid var(--line-subtle);
+      border-radius: 14px;
+      padding: 14px;
     }
-    .stat-saved {
-      background: linear-gradient(135deg, #0284c7 0%, #06b6d4 100%);
+    .nav-pills .nav-link {
+      color: #cbd5e1;
+      border-radius: 12px;
+      font-weight: 700;
+      border: 1px solid transparent;
+    }
+    .nav-pills .nav-link.active {
+      background: linear-gradient(90deg, #0284c7 0%, #0ea5e9 100%);
       color: #ffffff;
     }
-    .stat-active {
-      background: linear-gradient(135deg, #0d2746 0%, #09182c 100%);
-      border-color: rgba(16, 185, 129, 0.35);
+    .form-control, .form-select {
+      background-color: #06111f;
+      border-color: rgba(148, 163, 184, 0.22);
+      color: #f8fafc;
+      border-radius: 11px;
     }
-    .stat-done {
-      background: linear-gradient(135deg, #102542 0%, #081526 100%);
-      border-color: rgba(14, 165, 233, 0.3);
-    }
-    .progress-box {
-      background: linear-gradient(180deg, #112b4d 0%, #09182c 100%);
-      border: 1px solid rgba(16, 185, 129, 0.28);
-      border-radius: 20px;
-      padding: 24px;
-      text-align: center;
-    }
-    .progress-readout {
-      display: inline-block;
-      background: #06111f;
-      border-bottom: 4px solid #10b981;
-      border-radius: 14px;
-      padding: 18px 28px;
-      font-size: 2rem;
-      font-weight: 800;
-      color: #34d399;
-      margin-bottom: 14px;
-    }
-    .week-card {
-      background: linear-gradient(180deg, #112a4a 0%, #09182c 100%);
-      border: 1px solid var(--line-subtle);
-      border-radius: 18px;
-      padding: 18px;
-      height: 100%;
-      transition: transform 0.2s ease, border-color 0.2s ease;
-    }
-    .week-card:hover {
-      transform: translateY(-2px);
-      border-color: rgba(14, 165, 233, 0.45);
+    .form-control:focus, .form-select:focus {
+      background-color: #06111f;
+      color: #f8fafc;
+      border-color: var(--brand-primary);
+      box-shadow: none;
     }
     .login-confirm-backdrop {
       position: fixed;
@@ -134,10 +111,6 @@
       padding: 10px 26px;
       box-shadow: 0 4px 0 #38bdf8;
     }
-    .btn-confirm-ok:hover {
-      background: #38bdf8;
-      color: #0f172a;
-    }
     .floating-support-btn {
       position: fixed;
       bottom: 20px;
@@ -176,9 +149,7 @@
   {% if show_login_modal %}
     <div id="loginSuccessModal" class="login-confirm-backdrop">
       <div class="login-confirm-card">
-        <div class="check-circle-badge">
-          <i class="bi bi-check-lg"></i>
-        </div>
+        <div class="check-circle-badge"><i class="bi bi-check-lg"></i></div>
         <h2 class="h4 fw-bold mb-2">تم تسجيل الدخول بنجاح !</h2>
         <p class="text-secondary small mb-4">اضغط حسناً للاستمرار</p>
         <button type="button" class="btn btn-confirm-ok" onclick="closeLoginModal()">حسناً</button>
@@ -188,32 +159,13 @@
 
   <div class="container">
     <header class="student-topbar d-flex align-items-center justify-content-between gap-2 flex-wrap">
-      <div class="d-flex align-items-center gap-2">
-        <span class="badge bg-dark bg-opacity-40 text-white rounded-circle p-2">
-          <i class="bi bi-person-fill fs-6"></i>
-        </span>
-        <div>
-          <div class="fw-bold text-white small">{{ user.full_name }}</div>
-          <div class="text-white-50" style="font-size: 0.75rem;">{{ user.grade or 'صف دراسي' }} • π • ∑</div>
-        </div>
-      </div>
-
+      <a href="{{ url_for('student_dashboard') }}" class="text-white text-decoration-none fw-bold d-flex align-items-center gap-2">
+        <span class="badge bg-dark bg-opacity-40 text-info rounded-pill px-2 py-1">π • ∑ • Δ</span>
+        <span>لوحة الطالب — {{ user.full_name }}</span>
+      </a>
       <div class="d-flex align-items-center gap-2 flex-wrap">
-        <a href="{{ url_for('index') }}" class="btn btn-sm btn-dark bg-opacity-40 text-white border-0 rounded-pill px-3">
-          الرئيسية
-        </a>
-        <a href="{{ url_for('student_dashboard', tab='overview') }}" class="btn btn-sm btn-light text-dark fw-bold rounded-pill px-3">
-          لوحتي
-        </a>
-        <a href="{{ url_for('student_dashboard', tab='courses') }}" class="btn btn-sm btn-dark bg-opacity-40 text-white border-0 rounded-pill px-3">
-          الأسابيع والباقات
-        </a>
-        <a href="{{ url_for('student_dashboard', tab='exams') }}" class="btn btn-sm btn-dark bg-opacity-40 text-white border-0 rounded-pill px-3">
-          الاختبارات
-        </a>
-        <a href="{{ url_for('logout') }}" class="btn btn-sm btn-danger rounded-pill px-3">
-          خروج
-        </a>
+        <a href="{{ url_for('index') }}" class="btn btn-sm btn-dark bg-opacity-40 text-white border-0 rounded-pill px-3">الرئيسية</a>
+        <a href="{{ url_for('logout') }}" class="btn btn-sm btn-danger rounded-pill px-3">خروج</a>
       </div>
     </header>
   </div>
@@ -223,7 +175,7 @@
       {% if messages %}
         <div id="flashContainer" class="mb-3">
           {% for cat, msg in messages %}
-            <div class="alert alert-{{ cat }} rounded-3 shadow-sm">{{ msg }}</div>
+            <div class="alert alert-{{ cat if cat in ['primary','secondary','success','danger','warning','info','light','dark'] else 'info' }} rounded-3 shadow-sm">{{ msg }}</div>
           {% endfor %}
         </div>
       {% endif %}
@@ -231,397 +183,233 @@
 
     {% if show_onboarding %}
       <section class="math-card mb-4 border-info border-opacity-50">
-        <h2 class="h5 fw-bold text-info mb-2">
-          <i class="bi bi-person-check-fill me-1"></i> استكمال بيانات ملف الطالب (Onboarding)
-        </h2>
-        <p class="small text-secondary mb-3">
-          تأكد من صحة بياناتك الأساسية ليتمكن المدرس والإدارة من متابعة مستواك الدراسي بدقة.
-        </p>
+        <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-person-lines-fill me-1"></i> استكمال بيانات الملف الشخصي</h2>
         <form method="POST" action="{{ url_for('complete_onboarding') }}" class="row g-3">
           <div class="col-md-6">
-            <label class="form-label small fw-bold">الاسم الثلاثي للطالب</label>
-            <input type="text" name="full_name" class="form-control bg-dark text-white border-secondary"
-                   value="{{ user.full_name or '' }}" required />
+            <label class="form-label small fw-bold">الاسم الكامل</label>
+            <input type="text" name="full_name" class="form-control" value="{{ user.full_name }}" required />
           </div>
           <div class="col-md-6">
-            <label class="form-label small fw-bold">رقم هاتف ولي الأمر</label>
-            <input type="text" name="parent_phone" class="form-control bg-dark text-white border-secondary"
-                   value="{{ user.parent_phone or '' }}" required />
+            <label class="form-label small fw-bold">رقم ولي الأمر</label>
+            <input type="text" name="parent_phone" class="form-control" value="{{ user.parent_phone or '' }}" />
           </div>
           <div class="col-md-6">
             <label class="form-label small fw-bold">المحافظة</label>
-            <input type="text" name="governorate" class="form-control bg-dark text-white border-secondary"
-                   value="{{ user.governorate or 'الدقهلية' }}" required />
+            <input type="text" name="governorate" class="form-control" value="{{ user.governorate or 'الدقهلية' }}" />
           </div>
           <div class="col-md-6">
             <label class="form-label small fw-bold">الصف الدراسي</label>
-            <select name="grade" class="form-select bg-dark text-white border-secondary" required>
-              <option value="">اختر الصف الدراسي</option>
+            <select name="grade" class="form-select" required>
+              <option value="">اختر الصف</option>
               {% for g in grades %}
                 <option value="{{ g }}" {% if user.grade == g %}selected{% endif %}>{{ g }}</option>
               {% endfor %}
             </select>
           </div>
           <div class="col-12">
-            <button type="submit" class="btn btn-success fw-bold px-4 rounded-3">حفظ البيانات</button>
+            <button type="submit" class="btn btn-info text-dark fw-bold px-4">حفظ البيانات</button>
           </div>
         </form>
       </section>
     {% endif %}
 
     {% if pending_approval %}
-      <section class="math-card mb-4 text-center py-5 border-warning border-opacity-50">
-        <div class="display-6 text-warning mb-3"><i class="bi bi-hourglass-split"></i></div>
-        <h1 class="h4 fw-bold mb-2">حسابك قيد المراجعة الآن</h1>
-        <p class="text-light opacity-75 mx-auto mb-4" style="max-width: 560px;">
-          سوف يتم مراجعة حساباتكم ولن يظهر المحتوى إلا بعد قبول وموافقة الإدارة على الحساب.
+      <section class="math-card mb-4 border-warning border-opacity-50 text-center py-4">
+        <div class="fs-1 text-warning mb-2"><i class="bi bi-hourglass-split"></i></div>
+        <h2 class="h5 fw-bold text-warning mb-2">سوف يتم مراجعة حساباتكم</h2>
+        <p class="text-light opacity-75 small mx-auto mb-3" style="max-width: 540px;">
+          حسابك مسجل حالياً على صف <strong>{{ user.grade or 'غير محدد' }}</strong> وبانتظار موافقة الإدارة أو إدخال كود تفعيل صالح.
         </p>
-        <div class="d-flex justify-content-center gap-2 flex-wrap">
-          <a href="{{ url_for('student_dashboard') }}" class="btn btn-info text-dark fw-bold px-4 rounded-3">تحديث الحالة</a>
-          <a href="{{ url_for('index') }}" class="btn btn-outline-light px-4 rounded-3">العودة للرئيسية</a>
+        <form method="POST" action="{{ url_for('redeem_code') }}" class="row g-2 justify-content-center mx-auto" style="max-width: 440px;">
+          <div class="col-sm-8">
+            <input type="text" name="code" class="form-control text-center fw-bold" placeholder="أدخل كود التفعيل إن وُجد" required />
+          </div>
+          <div class="col-sm-4">
+            <button type="submit" class="btn btn-success fw-bold w-100">تفعيل</button>
+          </div>
+        </form>
+      </section>
+    {% else %}
+      <section class="math-card mb-4">
+        <div class="row g-3 align-items-center">
+          <div class="col-md-8">
+            <span class="badge bg-info bg-opacity-15 text-info border border-info border-opacity-25 mb-2">{{ user.grade }}</span>
+            <h1 class="h4 fw-bold text-white mb-1">أهلاً بك، {{ user.full_name }}</h1>
+            <div class="small text-secondary">
+              مشاهدة الفيديوهات: <strong class="text-white">{{ level_info.watched_count }} / {{ level_info.total_videos }}</strong> •
+              الامتحانات: <strong class="text-white">{{ level_info.solved_exams }} / {{ level_info.total_exams }}</strong> •
+              المتوسط: <strong class="text-info">{{ level_info.avg_score }}%</strong>
+            </div>
+          </div>
+          <div class="col-md-4 text-md-end">
+            <div class="fs-3 fw-bold text-info">{{ level_info.overall }}%</div>
+            <span class="badge {{ level_info.badge_class }}">{{ level_info.label }}</span>
+          </div>
         </div>
       </section>
 
-      {% if announcements %}
-        <section class="math-card mb-4">
-          <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-megaphone-fill me-1"></i> تنبيهات المنصة</h2>
-          <div class="d-grid gap-2">
-            {% for ann in announcements %}
-              <div class="p-3 rounded-3 bg-dark border border-secondary border-opacity-25">
-                <div class="fw-bold">{{ ann.title }}</div>
-                <div class="small text-secondary mt-1">{{ ann.message }}</div>
-              </div>
-            {% endfor %}
-          </div>
-        </section>
-      {% endif %}
+      <ul class="nav nav-pills gap-2 mb-4 flex-wrap">
+        <li class="nav-item">
+          <a class="nav-link {% if tab == 'overview' and not active_week %}active{% endif %}" href="{{ url_for('student_dashboard', tab='overview') }}">الأسابيع والباقات</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if tab == 'my_courses' %}active{% endif %}" href="{{ url_for('student_dashboard', tab='my_courses') }}">كورساتي ({{ subscribed_weeks|length }})</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if tab == 'exams' %}active{% endif %}" href="{{ url_for('student_dashboard', tab='exams') }}">الاختبارات ({{ exams|length }})</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if tab == 'redeem' %}active{% endif %}" href="{{ url_for('student_dashboard', tab='redeem') }}">تفعيل كود</a>
+        </li>
+      </ul>
 
-    {% else %}
       {% if active_week %}
-        <section class="math-card mb-4">
+        <section class="math-card mb-4 border-info border-opacity-50">
           <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
             <div>
-              <span class="badge bg-info bg-opacity-15 text-info border border-info border-opacity-25 mb-1">{{ active_week.grade }}</span>
-              <h1 class="h4 fw-bold mb-0">{{ active_week.title }}</h1>
-              {% if active_week.description %}
-                <p class="small text-secondary mt-1 mb-0">{{ active_week.description }}</p>
-              {% endif %}
+              <h2 class="h5 fw-bold text-info mb-1">{{ active_week.title }}</h2>
+              <div class="small text-secondary">{{ active_week.description or '' }}</div>
             </div>
-            <a href="{{ url_for('student_dashboard', tab='courses') }}" class="btn btn-sm btn-outline-light rounded-pill px-3">
-              <i class="bi bi-arrow-right me-1"></i> كل الأسابيع
-            </a>
+            <a href="{{ url_for('student_dashboard') }}" class="btn btn-sm btn-outline-light rounded-pill px-3">كل الأسابيع</a>
           </div>
 
-          <ul class="nav nav-pills gap-2 mb-4 border-bottom border-secondary border-opacity-25 pb-3" role="tablist">
-            <li class="nav-item" role="presentation">
-              <button class="nav-link active fw-bold rounded-3" data-bs-toggle="pill" data-bs-target="#tabExplanation" type="button">
-                عن الكورس والشرح
-              </button>
-            </li>
-            <li class="nav-item" role="presentation">
-              <button class="nav-link fw-bold rounded-3" data-bs-toggle="pill" data-bs-target="#tabForum" type="button">
-                المنتدى والتدريبات
-              </button>
-            </li>
-            <li class="nav-item" role="presentation">
-              <button class="nav-link fw-bold rounded-3" data-bs-toggle="pill" data-bs-target="#tabSessions" type="button">
-                الجلسات والاختبارات
-              </button>
-            </li>
-          </ul>
-
-          {% if not active_week_info.can_open %}
-            <div class="alert alert-warning rounded-3">
-              {{ active_week_info.lock_reason or 'هذا المحتوى غير متاح حالياً.' }}
-            </div>
-          {% else %}
-            <div class="tab-content">
-              <div class="tab-pane fade show active" id="tabExplanation">
-                <div class="p-3 rounded-3 bg-dark border border-info border-opacity-25 mb-3 small text-light opacity-75">
-                  <div class="fw-bold text-info mb-1">إرشادات المذاكرة في هذا القسم:</div>
-                  <div>1- شاهد محاضرات الشرح بالترتيب وسجّل إتمام المشاهدة بعد الانتهاء.</div>
-                  <div>2- راجع القوانين والخطوات المسائلية قبل الانتقال للتدريبات.</div>
-                </div>
-
-                {% if grouped_contents.explanation %}
+          {% if active_week_info and active_week_info.can_open %}
+            {% set sec_titles = {'explanation': 'عن الكورس والشرح', 'training': 'المنتدى والتدريبات', 'exam_section': 'الجلسات والاختبارات'} %}
+            {% for sk, stitle in sec_titles.items() %}
+              {% set items = grouped_contents.get(sk, []) %}
+              <div class="mb-4">
+                <h3 class="h6 fw-bold text-white mb-2"><i class="bi bi-folder2-open text-info me-1"></i> {{ stitle }}</h3>
+                {% if items %}
                   <div class="d-grid gap-3">
-                    {% for item in grouped_contents.explanation %}
-                      <div class="p-3 rounded-3 bg-dark border border-secondary border-opacity-25">
+                    {% for c in items %}
+                      <div class="sub-box">
                         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
-                          <div class="fw-bold text-white">{{ item.title }}</div>
-                          {% if item.id in watched_ids %}
-                            <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i> تمت المشاهدة</span>
-                          {% endif %}
-                        </div>
-                        {% if item.duration_or_notes %}
-                          <div class="small text-secondary mb-2">{{ item.duration_or_notes }}</div>
-                        {% endif %}
-
-                        {% if item.content_type == 'video_upload' and item.source_path %}
-                          <video src="{{ item.source_path }}" controls class="w-100 rounded-3 mb-2" style="max-height: 420px;"></video>
-                        {% elif item.content_type == 'video_link' and item.source_path %}
-                          <div class="ratio ratio-16x9 mb-2">
-                            <iframe src="{{ format_embed_url(item.source_path) }}" allowfullscreen class="rounded-3"></iframe>
+                          <div class="fw-bold text-white">
+                            {{ c.title }}
+                            {% if c.id in watched_ids %}<span class="badge bg-success ms-1">تمت المشاهدة</span>{% endif %}
                           </div>
-                        {% elif item.source_path %}
-                          <a href="{{ item.source_path }}" target="_blank" class="btn btn-sm btn-outline-info mb-2">
-                            <i class="bi bi-file-earmark-arrow-down me-1"></i> فتح الملف / المذكرة
-                          </a>
+                          <form method="POST" action="{{ url_for('mark_watched', content_id=c.id) }}">
+                            <button type="submit" class="btn btn-sm {% if c.id in watched_ids %}btn-outline-success{% else %}btn-info text-dark fw-bold{% endif %}">
+                              {% if c.id in watched_ids %}مكتمل{% else %}تحديد كمشاهد{% endif %}
+                            </button>
+                          </form>
+                        </div>
+
+                        {% if c.duration_or_notes %}
+                          <div class="small text-secondary mb-2">{{ c.duration_or_notes }}</div>
                         {% endif %}
 
-                        <form method="POST" action="{{ url_for('mark_watched', content_id=item.id) }}">
-                          <button type="submit" class="btn btn-sm btn-success fw-bold">
-                            <i class="bi bi-check2-all me-1"></i> تأكيد إتمام مشاهدة الدرس
-                          </button>
-                        </form>
-                      </div>
-                    {% endfor %}
-                  </div>
-                {% else %}
-                  <div class="text-secondary small">لا توجد محاضرات شرح مضافة في هذا الأسبوع بعد.</div>
-                {% endif %}
-              </div>
-
-              <div class="tab-pane fade" id="tabForum">
-                {% if grouped_contents.training %}
-                  <div class="d-grid gap-3">
-                    {% for item in grouped_contents.training %}
-                      <div class="p-3 rounded-3 bg-dark border border-secondary border-opacity-25">
-                        <div class="fw-bold text-white mb-1">{{ item.title }}</div>
-                        {% if item.duration_or_notes %}
-                          <div class="small text-secondary mb-2">{{ item.duration_or_notes }}</div>
-                        {% endif %}
-                        {% if item.source_path %}
-                          <a href="{{ item.source_path }}" target="_blank" class="btn btn-sm btn-info text-dark fw-bold">
-                            فتح التدريب / الملف
-                          </a>
+                        {% if c.content_type == 'video_link' and c.source_path %}
+                          {% set emb = format_embed_url(c.source_path) %}
+                          {% if 'youtube.com/embed/' in emb %}
+                            <div class="ratio ratio-16x9 rounded-3 overflow-hidden mb-2">
+                              <iframe src="{{ emb }}" title="{{ c.title }}" allowfullscreen></iframe>
+                            </div>
+                          {% else %}
+                            <a href="{{ c.source_path }}" target="_blank" class="btn btn-sm btn-outline-info"><i class="bi bi-play-circle me-1"></i> فتح رابط الفيديو</a>
+                          {% endif %}
+                        {% elif c.content_type == 'video_upload' and c.source_path %}
+                          <video src="{{ c.source_path }}" controls class="w-100 rounded-3 mb-2" style="max-height: 420px;"></video>
+                        {% elif c.source_path %}
+                          <a href="{{ c.source_path }}" target="_blank" class="btn btn-sm btn-outline-info"><i class="bi bi-file-earmark-arrow-down me-1"></i> فتح / تحميل الملف</a>
                         {% endif %}
                       </div>
                     {% endfor %}
                   </div>
                 {% else %}
-                  <div class="text-secondary small">لا توجد تدريبات أو ملفات منتدى مضافة في هذا الأسبوع حالياً.</div>
+                  <div class="small text-secondary">لا يوجد محتوى في هذا القسم حالياً.</div>
                 {% endif %}
               </div>
-
-              <div class="tab-pane fade" id="tabSessions">
-                <div class="p-3 rounded-3 bg-dark border border-warning border-opacity-25 mb-3 small text-warning">
-                  تأكد من مراجعة الدرس جيداً قبل بدء أي اختبار إلكتروني لتسجيل أفضل درجة في تقرير مستواك.
+            {% endfor %}
+          {% else %}
+            <div class="sub-box text-center py-4">
+              <div class="text-warning fw-bold mb-2"><i class="bi bi-lock-fill me-1"></i> {{ active_week_info.lock_reason if active_week_info else 'هذا المحتوى مغلق' }}</div>
+              <form method="POST" action="{{ url_for('redeem_code') }}" class="row g-2 justify-content-center mx-auto" style="max-width: 420px;">
+                <div class="col-8">
+                  <input type="text" name="code" class="form-control text-center fw-bold" placeholder="أدخل كود التفعيل" required />
                 </div>
-                {% if grouped_contents.exam_section %}
-                  <div class="d-grid gap-3 mb-3">
-                    {% for item in grouped_contents.exam_section %}
-                      <div class="p-3 rounded-3 bg-dark border border-secondary border-opacity-25">
-                        <div class="fw-bold text-white mb-1">{{ item.title }}</div>
-                        {% if item.duration_or_notes %}
-                          <div class="small text-secondary mb-2">{{ item.duration_or_notes }}</div>
-                        {% endif %}
-                        {% if item.source_path %}
-                          <a href="{{ item.source_path }}" target="_blank" class="btn btn-sm btn-outline-info">فتح الجلسة / الرابط</a>
-                        {% endif %}
-                      </div>
-                    {% endfor %}
-                  </div>
-                {% endif %}
-                <a href="{{ url_for('student_dashboard', tab='exams') }}" class="btn btn-primary fw-bold rounded-3">
-                  الانتقال إلى الاختبارات الإلكترونية
-                </a>
-              </div>
+                <div class="col-4">
+                  <button type="submit" class="btn btn-success fw-bold w-100">تفعيل</button>
+                </div>
+              </form>
             </div>
           {% endif %}
         </section>
-
-      {% elif tab == 'courses' %}
-        <section class="math-card mb-4">
-          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-            <h1 class="h4 fw-bold mb-0"><i class="bi bi-collection-play-fill text-info me-1"></i> الأسابيع والباقات — {{ user.grade }}</h1>
-            <a href="{{ url_for('student_dashboard', tab='overview') }}" class="btn btn-sm btn-outline-light rounded-pill px-3">رجوع للوحة</a>
-          </div>
-
-          <div class="row g-3">
-            {% for w in weeks %}
-              {% set info = week_access_map.get(w.id, {}) %}
-              <div class="col-md-6 col-lg-4">
-                <div class="week-card d-flex flex-column justify-content-between">
-                  <div>
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                      <span class="badge bg-info bg-opacity-15 text-info">أسبوع #{{ w.order_num }}</span>
-                      {% if info.can_open %}
-                        <span class="badge bg-success">متاح</span>
-                      {% else %}
-                        <span class="badge bg-secondary">مغلق</span>
-                      {% endif %}
-                    </div>
-                    <h2 class="h5 fw-bold text-white mb-2">{{ w.title }}</h2>
-                    <p class="small text-secondary mb-3">{{ w.description or 'شرح منهجي وتدريبات على أفكار الامتحانات.' }}</p>
-                  </div>
-
-                  <div>
-                    {% if info.can_open %}
-                      <a href="{{ url_for('student_dashboard', week_id=w.id) }}" class="btn btn-success fw-bold w-100 rounded-3">
-                        الدخول للكورس / الأسبوع
-                      </a>
-                    {% else %}
-                      <div class="small text-warning mb-2">{{ info.lock_reason or 'يتطلب تفعيل الحساب أو اجتياز المتطلب.' }}</div>
-                      <a href="{{ url_for('student_dashboard', tab='overview') }}" class="btn btn-outline-info w-100 rounded-3">
-                        إدخال كود التفعيل
-                      </a>
-                    {% endif %}
-                  </div>
-                </div>
-              </div>
-            {% else %}
-              <div class="col-12">
-                <div class="text-secondary small">لا توجد أسابيع أو باقات منشورة لصفك الدراسي حالياً.</div>
-              </div>
-            {% endfor %}
-          </div>
-        </section>
-
       {% elif tab == 'exams' %}
         <section class="math-card mb-4">
-          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-            <h1 class="h4 fw-bold mb-0"><i class="bi bi-journal-check text-info me-1"></i> الاختبارات والنتائج</h1>
-            <a href="{{ url_for('student_dashboard', tab='overview') }}" class="btn btn-sm btn-outline-light rounded-pill px-3">رجوع للوحة</a>
-          </div>
-
-          <div class="row g-3 mb-4">
-            {% for ex in exams %}
-              {% set res = results_by_exam.get(ex.id) %}
-              <div class="col-md-6">
-                <div class="week-card d-flex flex-column justify-content-between">
-                  <div>
-                    <h2 class="h5 fw-bold text-white mb-1">{{ ex.title }}</h2>
-                    <div class="small text-secondary mb-2">
-                      عدد الأسئلة: {{ ex.questions|length }} • المدة: {{ ex.duration_minutes or 20 }} دقيقة
+          <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-pencil-square me-1"></i> الاختبارات المتاحة لصفك</h2>
+          {% if exams %}
+            <div class="row g-3">
+              {% for ex in exams %}
+                {% set res = results_by_exam.get(ex.id) %}
+                <div class="col-md-6">
+                  <div class="sub-box h-100 d-flex flex-column justify-content-between gap-2">
+                    <div>
+                      <div class="fw-bold text-white">{{ ex.title }}</div>
+                      <div class="small text-secondary mt-1">
+                        المدة: {{ ex.duration_minutes or 20 }} دقيقة • عدد الأسئلة: {{ ex.questions|length }}
+                      </div>
+                      {% if res %}
+                        <div class="small text-success mt-1">آخر نتيجة: <strong>{{ res.score }} / {{ res.total_questions }} ({{ res.percentage }}%)</strong></div>
+                      {% endif %}
                     </div>
-                    {% if res %}
-                      <div class="badge bg-info text-dark mb-3">آخر نتيجة: {{ res.score }} / {{ res.total_questions }} ({{ res.percentage }}%)</div>
-                    {% endif %}
+                    <div>
+                      <a href="{{ url_for('take_exam', exam_id=ex.id) }}" class="btn btn-sm btn-primary fw-bold px-3">دخول الاختبار</a>
+                    </div>
                   </div>
-                  <a href="{{ url_for('take_exam', exam_id=ex.id) }}" class="btn btn-primary fw-bold w-100 rounded-3">
-                    {% if res %}إعادة الاختبار{% else %}بدء الاختبار{% endif %}
-                  </a>
                 </div>
-              </div>
-            {% else %}
-              <div class="col-12"><div class="text-secondary small">لا توجد اختبارات متاحة حالياً.</div></div>
-            {% endfor %}
-          </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="text-secondary small">لا توجد اختبارات متاحة حالياً.</div>
+          {% endif %}
         </section>
-
+      {% elif tab == 'redeem' %}
+        <section class="math-card mb-4" style="max-width: 540px;">
+          <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-key-fill me-1"></i> تفعيل كود أسبوع أو باقة</h2>
+          <form method="POST" action="{{ url_for('redeem_code') }}" class="d-grid gap-2">
+            <input type="text" name="code" class="form-control fw-bold" placeholder="اكتب كود التفعيل هنا" required />
+            <button type="submit" class="btn btn-success fw-bold">تفعيل الكود الآن</button>
+          </form>
+        </section>
       {% else %}
-        <div class="row g-3 mb-4">
-          <div class="col-md-4">
-            <div class="stat-tile stat-saved d-flex justify-content-between align-items-center">
-              <div>
-                <div class="fs-2 fw-bold">{{ level_info.watched_count }}</div>
-                <div class="fw-bold">فيديوهات تمت مشاهدتها</div>
-                <div class="small opacity-75">من إجمالي {{ level_info.total_videos }} فيديو</div>
-              </div>
-              <i class="bi bi-bookmark-check-fill fs-1 opacity-75"></i>
-            </div>
-          </div>
-
-          <div class="col-md-4">
-            <div class="stat-tile stat-active d-flex justify-content-between align-items-center">
-              <div>
-                <div class="fs-2 fw-bold text-info">{{ subscribed_weeks|length }}</div>
-                <div class="fw-bold">أسابيع / باقات متاحة</div>
-                <div class="small text-secondary">الأسابيع المفتوحة لحسابك الآن</div>
-              </div>
-              <i class="bi bi-lightbulb-fill fs-1 text-info"></i>
-            </div>
-          </div>
-
-          <div class="col-md-4">
-            <div class="stat-tile stat-done d-flex justify-content-between align-items-center">
-              <div>
-                <div class="fs-2 fw-bold text-success">{{ level_info.solved_exams }}</div>
-                <div class="fw-bold">اختبارات تم حلها</div>
-                <div class="small text-secondary">متوسط الدرجات: {{ level_info.avg_score }}%</div>
-              </div>
-              <i class="bi bi-check2-square fs-1 text-success"></i>
-            </div>
-          </div>
-        </div>
-
-        <div class="row g-4 mb-4">
-          <div class="col-lg-5">
-            <div class="progress-box h-100 d-flex flex-column justify-content-center align-items-center">
-              <div class="progress-readout">{{ level_info.overall }}%</div>
-              <h2 class="h5 fw-bold text-info mb-1">تقدمك الدراسي</h2>
-              <p class="small text-secondary mb-3">
-                مقياس إجمالي للمشاهدة والاختبارات — التقييم الحالي: <strong class="text-white">{{ level_info.label }}</strong>
-              </p>
-              <a href="{{ url_for('student_dashboard', tab='courses') }}" class="btn btn-primary fw-bold px-4 rounded-3">
-                ابدأ المذاكرة الآن
-              </a>
-            </div>
-          </div>
-
-          <div class="col-lg-7">
-            <div class="math-card h-100 d-flex flex-column justify-content-between">
-              <div>
-                <h2 class="h5 fw-bold text-info mb-2"><i class="bi bi-key-fill me-1"></i> تفعيل كود أسبوع أو باقة إضافية</h2>
-                <p class="small text-secondary mb-3">إذا كان معك كود تفعيل خاص بباقة أو أسبوع دراسي أدخله هنا لتفعيله فوراً.</p>
-                <form method="POST" action="{{ url_for('redeem_code') }}" class="row g-2">
-                  <div class="col-sm-8">
-                    <input type="text" name="code" class="form-control bg-dark text-white border-secondary"
-                           placeholder="أدخل كود التفعيل مثل AHMED-XXXX" required />
-                  </div>
-                  <div class="col-sm-4">
-                    <button type="submit" class="btn btn-success fw-bold w-100">تفعيل الكود</button>
-                  </div>
-                </form>
-              </div>
-
-              {% if announcements %}
-                <div class="mt-4 pt-3 border-top border-secondary border-opacity-25">
-                  <div class="small fw-bold text-info mb-2">أحدث تنبيهات الصف:</div>
-                  {% for ann in announcements[:2] %}
-                    <div class="small text-light opacity-75 mb-1">• <strong>{{ ann.title }}:</strong> {{ ann.message }}</div>
-                  {% endfor %}
-                </div>
-              {% endif %}
-            </div>
-          </div>
-        </div>
-
         <section class="math-card mb-4">
-          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-            <h2 class="h5 fw-bold text-info mb-0"><i class="bi bi-journal-bookmark-fill me-1"></i> الأسابيع والباقات المتاحة لصفك</h2>
-            <a href="{{ url_for('student_dashboard', tab='courses') }}" class="btn btn-sm btn-outline-info rounded-pill px-3">عرض الكل</a>
-          </div>
-
-          <div class="row g-3">
-            {% for w in weeks[:3] %}
-              {% set info = week_access_map.get(w.id, {}) %}
-              <div class="col-md-4">
-                <div class="week-card d-flex flex-column justify-content-between">
-                  <div>
-                    <span class="badge bg-info bg-opacity-15 text-info mb-2">{{ w.grade }}</span>
-                    <h3 class="h6 fw-bold text-white mb-2">{{ w.title }}</h3>
-                    <p class="small text-secondary mb-3">{{ w.description or 'شرح مبسط وتدريبات متدرجة.' }}</p>
+          <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-collection-play-fill me-1"></i> الأسابيع والباقات</h2>
+          {% set list_weeks = subscribed_weeks if tab == 'my_courses' else weeks %}
+          {% if list_weeks %}
+            <div class="row g-3">
+              {% for w in list_weeks %}
+                {% set info = week_access_map.get(w.id, {'can_open': False}) %}
+                <div class="col-md-6">
+                  <div class="sub-box h-100 d-flex flex-column justify-content-between gap-2">
+                    <div>
+                      <div class="d-flex justify-content-between align-items-center gap-2">
+                        <span class="fw-bold text-white">{{ w.title }}</span>
+                        {% if w.is_free %}
+                          <span class="badge bg-success">مجانية</span>
+                        {% elif info.can_open %}
+                          <span class="badge bg-info text-dark">مفعلة</span>
+                        {% else %}
+                          <span class="badge bg-secondary">بكود</span>
+                        {% endif %}
+                      </div>
+                      {% if w.description %}<div class="small text-secondary mt-1">{{ w.description }}</div>{% endif %}
+                    </div>
+                    <div>
+                      <a href="{{ url_for('student_dashboard', week_id=w.id) }}" class="btn btn-sm btn-outline-info fw-bold px-3">فتح الأسبوع</a>
+                    </div>
                   </div>
-                  {% if info.can_open %}
-                    <a href="{{ url_for('student_dashboard', week_id=w.id) }}" class="btn btn-sm btn-success fw-bold rounded-3">
-                      الدخول للكورس
-                    </a>
-                  {% else %}
-                    <div class="small text-warning">{{ info.lock_reason or 'مغلق حالياً' }}</div>
-                  {% endif %}
                 </div>
-              </div>
-            {% else %}
-              <div class="col-12"><div class="text-secondary small">لا توجد أسابيع منشورة حالياً.</div></div>
-            {% endfor %}
-          </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="text-secondary small">لا توجد أسابيع أو باقات متاحة حالياً.</div>
+          {% endif %}
         </section>
       {% endif %}
     {% endif %}
 
-    <div class="text-center mt-5 mb-5">
+    <div class="text-center mt-5 mb-4">
       <div class="mb-1" style="color:#9fb3c8;font-size:0.8rem;">جميع الحقوق محفوظة © 2026</div>
       <div class="dev-credit-muted">
         <i class="bi bi-code-slash"></i>
@@ -631,7 +419,7 @@
   </main>
 
   {% if settings.whatsapp_number %}
-    <a href="https://wa.me/{{ clean_wa_phone(settings.whatsapp_number) }}?text={{ quote('السلام عليكم، أحتاج مساعدة في منصة الرياضيات مع ' ~ (settings.teacher_name if settings.teacher_name and settings.teacher_name != 'None' else 'مستر أحمد جمال')) }}"
+    <a href="https://wa.me/{{ clean_wa_phone(settings.whatsapp_number) }}?text={{ quote('السلام عليكم، أستفسر بخصوص منصة الرياضيات مع ' ~ (settings.teacher_name if settings.teacher_name and settings.teacher_name != 'None' else 'مستر أحمد جمال')) }}"
        target="_blank" class="floating-support-btn">
       <i class="bi bi-chat-dots-fill"></i>
       <span>تواصل مع الدعم</span>
@@ -642,9 +430,8 @@
   <script>
     function closeLoginModal() {
       const m = document.getElementById("loginSuccessModal");
-      if (m) { m.remove(); }
+      if (m) m.remove();
     }
-
     setTimeout(function () {
       document.querySelectorAll("#flashContainer .alert").forEach(function (el) {
         el.style.transition = "opacity 0.4s ease";

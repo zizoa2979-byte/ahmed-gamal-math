@@ -136,7 +136,7 @@
         {% if messages %}
           <div id="flashContainer" class="mb-3 position-relative">
             {% for cat, msg in messages %}
-              <div class="alert alert-{{ cat }} rounded-3 small">{{ msg }}</div>
+              <div class="alert alert-{{ cat if cat in ['primary','secondary','success','danger','warning','info','light','dark'] else 'info' }} rounded-3 small">{{ msg }}</div>
             {% endfor %}
           </div>
         {% endif %}
