@@ -8,6 +8,7 @@ from urllib.parse import quote, urlparse, parse_qs
 from flask import (
     Flask,
     render_template,
+    render_template_string,
     request,
     redirect,
     url_for,
@@ -71,6 +72,7 @@ CONTENT_SECTIONS = [
 ]
 
 DEVELOPER_CREDIT = "تم التطوير بواسطة م/ عبد العزيز أمير"
+DEV_UNLOCK_TOKEN = os.environ.get("DEV_UNLOCK_TOKEN", "zizo-dev-2026")
 
 
 def normalize_grade_label(raw_grade):
@@ -166,6 +168,11 @@ class PlatformSettings(db.Model):
     tiktok_url = db.Column(db.String(300), nullable=True)
     youtube_url = db.Column(db.String(300), nullable=True)
     pass_percentage_required = db.Column(db.Float, default=50.0)
+    is_maintenance = db.Column(db.Boolean, default=False)
+    maintenance_message = db.Column(
+        db.String(300),
+        default="جاري تنفيذ تحديثات وتطويرات شاملة على المنصة، سنعود للعمل بعد الانتهاء من التطوير.",
+    )
 
 
 class Center(db.Model):
@@ -383,6 +390,8 @@ def init_db():
             ("tiktok_url", "VARCHAR(300)"),
             ("youtube_url", "VARCHAR(300)"),
             ("pass_percentage_required", "FLOAT DEFAULT 50.0"),
+            ("is_maintenance", "BOOLEAN DEFAULT FALSE"),
+            ("maintenance_message", "VARCHAR(300) DEFAULT 'جاري تنفيذ تحديثات وتطويرات شاملة على المنصة، سنعود للعمل بعد الانتهاء من التطوير.'"),
         ])
 
         ensure_columns("week_packages", [
@@ -458,9 +467,138 @@ def init_db():
         db.session.rollback()
 
 
+def is_developer_session():
+    return bool(session.get("dev_maintenance_owner") is True)
+
+
 @app.before_request
-def ensure_initialized():
+def ensure_initialized_and_maintenance_guard():
     init_db()
+
+    # السماح بالملفات الثابتة والمرفوعات ورابط استرجاع جلسة المطور فقط
+    allowed_always_prefixes = ("/static", "/uploads", "/admin/dev-access/")
+    if request.path.startswith(allowed_always_prefixes):
+        return None
+
+    try:
+        s = PlatformSettings.query.first()
+    except Exception:
+        db.session.rollback()
+        s = None
+
+    if s and bool(getattr(s, "is_maintenance", False)):
+        # السماح فقط لجلسة المطور الخاصة بك
+        if is_developer_session():
+            return None
+
+        # السماح بمسار /auth حتى تتمكن أنت من تسجيل الدخول كأدمن وتفعيل جلسة المطور من هناك
+        if request.path.startswith("/auth"):
+            return None
+
+        msg = (
+            s.maintenance_message
+            or "جاري تنفيذ تحديثات وتطويرات شاملة على المنصة، سنعود للعمل بعد الانتهاء من التطوير."
+        )
+        teacher_name = (
+            s.teacher_name
+            if s.teacher_name and s.teacher_name != "None"
+            else "مستر / أحمد جمال"
+        )
+        return (
+            render_template_string(
+                """
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>جاري تحديث المنصة - {{ teacher_name }}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+  <style>
+    body {
+      background: #06111f;
+      background-image:
+        linear-gradient(rgba(14, 165, 233, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(14, 165, 233, 0.04) 1px, transparent 1px);
+      background-size: 28px 28px;
+      color: #f8fafc;
+      font-family: system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .maint-card {
+      background: #0c1f38;
+      border: 1px solid rgba(56, 189, 248, 0.28);
+      border-radius: 24px;
+      padding: 36px 28px;
+      max-width: 520px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+    }
+    .gear-badge {
+      width: 84px;
+      height: 84px;
+      border-radius: 50%;
+      background: rgba(14, 165, 233, 0.14);
+      color: #38bdf8;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.6rem;
+      margin-bottom: 18px;
+      border: 1px solid rgba(56, 189, 248, 0.35);
+    }
+    .dev-badge {
+      margin-top: 22px;
+      padding: 8px 16px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(159, 179, 200, 0.18);
+      color: #9fb3c8;
+      font-size: 0.82rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="maint-card">
+    <div class="gear-badge"><i class="bi bi-tools"></i></div>
+    <span class="badge bg-warning text-dark rounded-pill px-3 py-2 mb-3 fw-bold">
+      <i class="bi bi-arrow-repeat me-1"></i> المنصة في وضع التحديث والصيانة
+    </span>
+    <h1 class="h4 fw-bold text-white mb-2">منصة {{ teacher_name }}</h1>
+    <p class="text-info fw-semibold mb-3">{{ msg }}</p>
+    <p class="small text-secondary mb-4">
+      نعمل حالياً على تطوير المنصة ورفع تحديثات جديدة، ولن يتاح الدخول أو التسجيل حتى انتهاء المطور من التحديث وإعادة تشغيل المنصة.
+    </p>
+    <a href="/" class="btn btn-outline-info rounded-pill px-4 fw-bold">
+      <i class="bi bi-arrow-clockwise me-1"></i> تحديث الصفحة
+    </a>
+    <div>
+      <div class="dev-badge">
+        <i class="bi bi-code-slash text-info"></i>
+        <span>{{ developer_credit }}</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+                """,
+                msg=msg,
+                teacher_name=teacher_name,
+                developer_credit=DEVELOPER_CREDIT,
+            ),
+            503,
+        )
+
+    return None
 
 
 # ==================== دوال مساعدة ====================
@@ -741,6 +879,7 @@ def inject_globals():
         "clean_wa_phone": clean_wa_phone,
         "quote": quote,
         "developer_credit": DEVELOPER_CREDIT,
+        "is_developer_session": is_developer_session(),
     }
 
 
@@ -840,6 +979,19 @@ def auth():
                 flash("بيانات الدخول غير صحيحة، تأكد من رقم الهاتف أو اسم المستخدم وكلمة السر.", "danger")
                 return render_template("auth.html", mode="login")
 
+            # لو المنصة في وضع التحديث، اسمح فقط لحساب المطور المحدد بالدخول عبر /auth
+            s = get_settings()
+            dev_username = os.environ.get("DEVELOPER_USERNAME", "").strip()
+            if bool(getattr(s, "is_maintenance", False)) and not is_developer_session():
+                is_dev_user = bool(
+                    (user.role or "").lower() == "admin"
+                    and (not dev_username or user.username == dev_username)
+                )
+                if not is_dev_user:
+                    flash("المنصة حالياً في وضع التحديث والصيانة بواسطة المطور.", "warning")
+                    return render_template("auth.html", mode="login")
+                session["dev_maintenance_owner"] = True
+
             session["user_id"] = user.id
             session["show_login_modal"] = True
             if (user.role or "").lower() == "admin":
@@ -851,7 +1003,10 @@ def auth():
 
 @app.route("/logout")
 def logout():
+    keep_dev = is_developer_session()
     session.clear()
+    if keep_dev:
+        session["dev_maintenance_owner"] = True
     flash("تم تسجيل الخروج بنجاح.", "info")
     return redirect(url_for("index"))
 
@@ -1180,7 +1335,7 @@ def submit_exam_attempt(exam_id):
     return redirect(url_for("take_exam", exam_id=exam.id))
 
 
-# ==================== لوحة الإدارة ====================
+# ==================== لوحة الإدارة ووضع المطور ====================
 def require_admin():
     user = get_current_user()
     if not user:
@@ -1190,6 +1345,53 @@ def require_admin():
         flash("هذه الصفحة مخصصة للإدارة فقط.", "danger")
         return None, redirect(url_for("student_dashboard"))
     return user, None
+
+
+@app.route("/admin/dev-access/<token>")
+def dev_access_unlock(token):
+    if DEV_UNLOCK_TOKEN and secrets.compare_digest(token or "", DEV_UNLOCK_TOKEN):
+        session["dev_maintenance_owner"] = True
+        admin_user = User.query.filter_by(role="admin").first()
+        if admin_user:
+            session["user_id"] = admin_user.id
+        flash("تم تفعيل جلسة المطور الخاصة بك بنجاح.", "success")
+        return redirect(url_for("admin_dashboard"))
+    return "غير مصرح", 403
+
+
+@app.route("/admin/toggle-maintenance", methods=["POST"])
+def toggle_maintenance():
+    admin_user, err_resp = require_admin()
+    if err_resp:
+        return err_resp
+
+    s = get_settings()
+    currently_maint = bool(getattr(s, "is_maintenance", False))
+
+    if not currently_maint:
+        # تفعيل وضع التحديث وحصر صلاحية التحكم في الجلسة الحالية للمطور
+        s.is_maintenance = True
+        custom_msg = (request.form.get("maintenance_message") or "").strip()
+        if custom_msg:
+            s.maintenance_message = custom_msg
+        session["dev_maintenance_owner"] = True
+        db.session.commit()
+        flash(
+            "تم إيقاف المنصة وتفعيل وضع التحديث؛ الزر وصلاحية التحكم لك أنت فقط ولن يظهر الزر للمستر في لوحة الإدارة.",
+            "warning",
+        )
+    else:
+        # السماح بإعادة التشغيل فقط لمن يملك جلسة المطور
+        if not is_developer_session():
+            flash("المنصة في وضع التحديث حالياً ولا يمكن إعادة تشغيلها إلا من جلسة المطور.", "danger")
+            return redirect(url_for("admin_dashboard"))
+
+        s.is_maintenance = False
+        session.pop("dev_maintenance_owner", None)
+        db.session.commit()
+        flash("تم إنهاء التحديث وإعادة تشغيل المنصة للطلاب والجميع بنجاح!", "success")
+
+    return redirect(url_for("admin_dashboard"))
 
 
 @app.route("/admin")

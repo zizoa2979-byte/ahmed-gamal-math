@@ -159,6 +159,16 @@
 </head>
 <body>
   <div class="container">
+    {% if is_developer_session and settings.is_maintenance %}
+      <div class="alert alert-warning border-warning d-flex justify-content-between align-items-center flex-wrap gap-2 rounded-4 p-3 mt-3 mb-0 shadow">
+        <div>
+          <i class="bi bi-tools me-1"></i>
+          <strong>معاينة المطور:</strong> المنصة حالياً <strong>متوقفة للطلاب والمستر</strong> في وضع التحديث، وأنت تشاهد الصفحة عبر جلسة المطور الخاصة بك.
+        </div>
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-sm btn-dark fw-bold rounded-pill px-3">العودة للوحة الإدارة</a>
+      </div>
+    {% endif %}
+
     <!-- شريط علوي مستدير بهوية الرياضيات -->
     <header class="math-topbar d-flex align-items-center justify-content-between gap-2">
       <div class="d-flex align-items-center gap-2">

@@ -172,6 +172,49 @@
       {% endif %}
     {% endwith %}
 
+    {% if is_developer_session or settings.is_maintenance %}
+      <section class="math-card mb-4 {% if settings.is_maintenance %}border-danger{% else %}border-success border-opacity-50{% endif %}">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+          <div>
+            <h2 class="h5 fw-bold mb-1 {% if settings.is_maintenance %}text-danger{% else %}text-success{% endif %}">
+              <i class="bi {% if settings.is_maintenance %}bi-pause-circle-fill{% else %}bi-broadcast{% endif %} me-1"></i>
+              وضع التطوير وحالة المنصة:
+              {% if settings.is_maintenance %}
+                <span class="badge bg-danger">متوقفة للتحديث</span>
+              {% else %}
+                <span class="badge bg-success">تعمل للطلاب</span>
+              {% endif %}
+            </h2>
+            <div class="small text-secondary">
+              {% if is_developer_session %}
+                جلسة المطور مفعّلة لك وحدك — يمكنك إيقاف المنصة قبل التحديثات وإعادة تشغيلها عند الانتهاء.
+              {% else %}
+                المنصة حالياً في وضع التحديث والصيانة بواسطة المطور.
+              {% endif %}
+            </div>
+          </div>
+
+          {% if is_developer_session %}
+            <form method="POST" action="{{ url_for('toggle_maintenance') }}" class="d-flex flex-wrap align-items-center gap-2">
+              <input type="text"
+                     name="maintenance_message"
+                     class="form-control form-control-sm"
+                     style="min-width: 260px;"
+                     value="{{ settings.maintenance_message or 'جاري تنفيذ تحديثات وتطويرات شاملة على المنصة، سنعود للعمل بعد الانتهاء من التطوير.' }}"
+                     placeholder="رسالة التحديث التي تظهر للطلاب والمستر" />
+              <button type="submit" class="btn {% if settings.is_maintenance %}btn-success{% else %}btn-danger{% endif %} fw-bold rounded-pill px-4">
+                {% if settings.is_maintenance %}
+                  <i class="bi bi-play-fill me-1"></i> إعادة تشغيل المنصة
+                {% else %}
+                  <i class="bi bi-pause-fill me-1"></i> إيقاف المنصة للتحديث
+                {% endif %}
+              </button>
+            </form>
+          {% endif %}
+        </div>
+      </section>
+    {% endif %}
+
     {% if pending_students %}
       <div class="alert alert-warning border-warning d-flex justify-content-between align-items-center flex-wrap gap-2 rounded-4 p-3 mb-4 shadow">
         <div>
