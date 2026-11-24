@@ -23,7 +23,6 @@ from werkzeug.utils import secure_filename
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "ahmed-gamal-math-platform-secret-2026")
 
-# قاعدة البيانات: PostgreSQL عبر DATABASE_URL أو SQLite محلياً
 raw_db_url = os.environ.get("DATABASE_URL", "").strip()
 if raw_db_url.startswith("postgres://"):
     raw_db_url = raw_db_url.replace("postgres://", "postgresql://", 1)
@@ -230,8 +229,52 @@ class ExamResult(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
-# ==================== تهيئة قاعدة البيانات ====================
+# ==================== تهيئة قاعدة البيانات ودمج البيانات القديمة بأمان ====================
 _db_ready = False
+
+
+def _sync_legacy_user_table(inspector):
+    """ينسخ أي مستخدمين من جدول user القديم إلى users دون حذف أي شيء."""
+    if "user" not in inspector.get_table_names() or "users" not in inspector.get_table_names():
+        return
+    try:
+        legacy_cols = {c["name"] for c in inspector.get_columns("user")}
+        rows = db.session.execute(text('SELECT * FROM "user"')).mappings().all()
+        for r in rows:
+            uname = (str(r.get("username") or "").strip() or None) if "username" in legacy_cols else None
+            phone_val = (str(r.get("phone") or "").strip() or None) if "phone" in legacy_cols else None
+            full_name = (str(r.get("full_name") or r.get("name") or uname or phone_val or "مستخدم")).strip()
+            role_val = (str(r.get("role") or "student").strip().lower()) if "role" in legacy_cols else "student"
+            if role_val not in ("admin", "student"):
+                role_val = "student"
+            pwd_val = (str(r.get("password_hash") or r.get("password") or "").strip()) if ("password_hash" in legacy_cols or "password" in legacy_cols) else ""
+            if not pwd_val:
+                pwd_val = generate_password_hash("admin123" if role_val == "admin" else "123456")
+
+            exists = None
+            if uname:
+                exists = User.query.filter_by(username=uname).first()
+            if not exists and phone_val:
+                exists = User.query.filter_by(phone=phone_val).first()
+
+            if not exists:
+                db.session.add(
+                    User(
+                        username=uname,
+                        full_name=full_name,
+                        phone=phone_val,
+                        parent_phone=str(r.get("parent_phone") or "").strip() or None if "parent_phone" in legacy_cols else None,
+                        governorate=str(r.get("governorate") or "الدقهلية").strip() if "governorate" in legacy_cols else "الدقهلية",
+                        grade=str(r.get("grade") or "").strip() or None if "grade" in legacy_cols else None,
+                        role=role_val,
+                        is_active=bool(r.get("is_active")) if "is_active" in legacy_cols and r.get("is_active") is not None else True,
+                        onboarding_done=True,
+                        password_hash=pwd_val,
+                    )
+                )
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
 
 
 def init_db():
@@ -261,7 +304,7 @@ def init_db():
             ("governorate", "VARCHAR(80) DEFAULT 'الدقهلية'"),
             ("grade", "VARCHAR(80)"),
             ("role", "VARCHAR(20) DEFAULT 'student'"),
-            ("is_active", "BOOLEAN DEFAULT FALSE"),
+            ("is_active", "BOOLEAN DEFAULT TRUE"),
             ("onboarding_done", "BOOLEAN DEFAULT TRUE"),
             ("password_hash", "VARCHAR(255)"),
             ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
@@ -315,6 +358,19 @@ def init_db():
         ])
 
         db.session.commit()
+        _sync_legacy_user_table(inspect(db.engine))
+
+        # تأمين أي صف قديم في users ليس له password_hash أو full_name
+        all_u = User.query.all()
+        for u in all_u:
+            if not u.full_name:
+                u.full_name = u.username or u.phone or f"مستخدم {u.id}"
+            if not u.password_hash:
+                u.password_hash = generate_password_hash("admin123" if u.role == "admin" else "123456")
+            if u.onboarding_done is None:
+                u.onboarding_done = True
+            if u.is_active is None:
+                u.is_active = True
 
         if not PlatformSettings.query.first():
             db.session.add(PlatformSettings())
@@ -427,81 +483,103 @@ def format_embed_url(url):
 
 
 def weeks_for_grade(grade):
-    if not grade:
-        return WeekPackage.query.filter_by(is_published=True).order_by(WeekPackage.order_num.asc(), WeekPackage.id.asc()).all()
-    return (
-        WeekPackage.query.filter(
-            WeekPackage.is_published.is_(True),
-            WeekPackage.grade.in_([grade, "ALL_GRADES"]),
+    try:
+        if not grade:
+            return WeekPackage.query.filter_by(is_published=True).order_by(WeekPackage.order_num.asc(), WeekPackage.id.asc()).all()
+        return (
+            WeekPackage.query.filter(
+                WeekPackage.is_published.is_(True),
+                WeekPackage.grade.in_([grade, "ALL_GRADES"]),
+            )
+            .order_by(WeekPackage.order_num.asc(), WeekPackage.id.asc())
+            .all()
         )
-        .order_by(WeekPackage.order_num.asc(), WeekPackage.id.asc())
-        .all()
-    )
+    except Exception:
+        db.session.rollback()
+        return []
 
 
 def exams_for_grade(grade):
-    if not grade:
-        return Exam.query.order_by(Exam.id.desc()).all()
-    return Exam.query.filter(Exam.grade.in_([grade, "ALL_GRADES"])).order_by(Exam.id.desc()).all()
+    try:
+        if not grade:
+            return Exam.query.order_by(Exam.id.desc()).all()
+        return Exam.query.filter(Exam.grade.in_([grade, "ALL_GRADES"])).order_by(Exam.id.desc()).all()
+    except Exception:
+        db.session.rollback()
+        return []
 
 
 def compute_student_level(user):
-    grade_weeks = weeks_for_grade(user.grade)
-    video_items = []
-    for w in grade_weeks:
-        for c in w.contents:
-            if c.content_type in ("video_link", "video_upload"):
-                video_items.append(c.id)
+    try:
+        grade_weeks = weeks_for_grade(user.grade)
+        video_items = []
+        for w in grade_weeks:
+            for c in getattr(w, "contents", []) or []:
+                if c.content_type in ("video_link", "video_upload"):
+                    video_items.append(c.id)
 
-    watched_ids = {
-        wc.content_id for wc in WatchedContent.query.filter_by(user_id=user.id).all()
-    }
-    watched_count = sum(1 for cid in video_items if cid in watched_ids)
-    total_videos = len(video_items)
-    watch_pct = (watched_count / total_videos * 100.0) if total_videos > 0 else 0.0
+        watched_ids = {
+            wc.content_id for wc in WatchedContent.query.filter_by(user_id=user.id).all()
+        }
+        watched_count = sum(1 for cid in video_items if cid in watched_ids)
+        total_videos = len(video_items)
+        watch_pct = (watched_count / total_videos * 100.0) if total_videos > 0 else 0.0
 
-    grade_exams = exams_for_grade(user.grade)
-    total_exams = len(grade_exams)
-    results = ExamResult.query.filter_by(user_id=user.id).order_by(ExamResult.id.desc()).all()
-    best_by_exam = {}
-    for r in results:
-        if r.exam_id not in best_by_exam or r.percentage > best_by_exam[r.exam_id]:
-            best_by_exam[r.exam_id] = r.percentage
+        grade_exams = exams_for_grade(user.grade)
+        total_exams = len(grade_exams)
+        results = ExamResult.query.filter_by(user_id=user.id).order_by(ExamResult.id.desc()).all()
+        best_by_exam = {}
+        for r in results:
+            pct_val = float(r.percentage or 0.0)
+            if r.exam_id not in best_by_exam or pct_val > best_by_exam[r.exam_id]:
+                best_by_exam[r.exam_id] = pct_val
 
-    solved_exams = len(best_by_exam)
-    avg_score = round(sum(best_by_exam.values()) / solved_exams, 1) if solved_exams > 0 else 0.0
-    exam_pct = (sum(best_by_exam.values()) / total_exams) if total_exams > 0 else 0.0
+        solved_exams = len(best_by_exam)
+        avg_score = round(sum(best_by_exam.values()) / solved_exams, 1) if solved_exams > 0 else 0.0
+        exam_pct = (sum(best_by_exam.values()) / total_exams) if total_exams > 0 else 0.0
 
-    if total_videos > 0 and total_exams > 0:
-        overall = round((watch_pct * 0.4) + (exam_pct * 0.6), 1)
-    elif total_videos > 0:
-        overall = round(watch_pct, 1)
-    elif total_exams > 0:
-        overall = round(exam_pct, 1)
-    else:
-        overall = 0.0
+        if total_videos > 0 and total_exams > 0:
+            overall = round((watch_pct * 0.4) + (exam_pct * 0.6), 1)
+        elif total_videos > 0:
+            overall = round(watch_pct, 1)
+        elif total_exams > 0:
+            overall = round(exam_pct, 1)
+        else:
+            overall = 0.0
 
-    if overall >= 85:
-        label, badge_class = "ممتاز جداً", "bg-success"
-    elif overall >= 65:
-        label, badge_class = "جيد جداً", "bg-info text-dark"
-    elif overall >= 50:
-        label, badge_class = "متوسط", "bg-primary"
-    elif watched_count > 0 or solved_exams > 0:
-        label, badge_class = "يحتاج متابعة", "bg-warning text-dark"
-    else:
-        label, badge_class = "بداية جديدة", "bg-secondary"
+        if overall >= 85:
+            label, badge_class = "ممتاز جداً", "bg-success"
+        elif overall >= 65:
+            label, badge_class = "جيد جداً", "bg-info text-dark"
+        elif overall >= 50:
+            label, badge_class = "متوسط", "bg-primary"
+        elif watched_count > 0 or solved_exams > 0:
+            label, badge_class = "يحتاج متابعة", "bg-warning text-dark"
+        else:
+            label, badge_class = "بداية جديدة", "bg-secondary"
 
-    return {
-        "watched_count": watched_count,
-        "total_videos": total_videos,
-        "solved_exams": solved_exams,
-        "total_exams": total_exams,
-        "avg_score": avg_score,
-        "overall": overall,
-        "label": label,
-        "badge_class": badge_class,
-    }
+        return {
+            "watched_count": watched_count,
+            "total_videos": total_videos,
+            "solved_exams": solved_exams,
+            "total_exams": total_exams,
+            "avg_score": avg_score,
+            "overall": overall,
+            "label": label,
+            "badge_class": badge_class,
+        }
+    except Exception:
+        db.session.rollback()
+        return {
+            "watched_count": 0,
+            "total_videos": 0,
+            "solved_exams": 0,
+            "total_exams": 0,
+            "avg_score": 0.0,
+            "overall": 0.0,
+            "label": "بداية جديدة",
+            "badge_class": "bg-secondary",
+        }
 
 
 def parse_answers_json(raw_json):
@@ -605,11 +683,22 @@ def uploaded_media(filename):
 
 @app.route("/")
 def index():
-    return render_template(
-        "index.html",
-        centers=Center.query.order_by(Center.id.asc()).all(),
-        announcements=Announcement.query.order_by(Announcement.id.desc()).all(),
-    )
+    try:
+        centers = Center.query.order_by(Center.id.asc()).all()
+        announcements = Announcement.query.order_by(Announcement.id.desc()).all()
+    except Exception:
+        db.session.rollback()
+        centers, announcements = [], []
+    return render_template("index.html", centers=centers, announcements=announcements)
+
+
+def _verify_password_safe(stored_hash, plain_password):
+    if not stored_hash:
+        return False
+    try:
+        return check_password_hash(stored_hash, plain_password)
+    except Exception:
+        return stored_hash == plain_password
 
 
 @app.route("/auth", methods=["GET", "POST"])
@@ -668,17 +757,23 @@ def auth():
             login_id = (request.form.get("login_id") or "").strip()
             password = request.form.get("password") or ""
 
-            user = User.query.filter(
-                (User.phone == login_id) | (User.username == login_id)
-            ).first()
+            try:
+                user = User.query.filter(
+                    (User.phone == login_id)
+                    | (User.username == login_id)
+                    | (User.full_name == login_id)
+                ).first()
+            except Exception:
+                db.session.rollback()
+                user = None
 
-            if not user or not check_password_hash(user.password_hash, password):
+            if not user or not _verify_password_safe(user.password_hash, password):
                 flash("بيانات الدخول غير صحيحة، تأكد من رقم الهاتف أو اسم المستخدم وكلمة السر.", "danger")
                 return render_template("auth.html", mode="login")
 
             session["user_id"] = user.id
             session["show_login_modal"] = True
-            if user.role == "admin":
+            if (user.role or "").lower() == "admin":
                 return redirect(url_for("admin_dashboard"))
             return redirect(url_for("student_dashboard"))
 
@@ -700,7 +795,7 @@ def student_dashboard():
         flash("يرجى تسجيل الدخول أولاً.", "warning")
         return redirect(url_for("auth", mode="login"))
 
-    if user.role == "admin":
+    if (user.role or "").lower() == "admin":
         return redirect(url_for("admin_dashboard"))
 
     show_login_modal = bool(session.pop("show_login_modal", False))
@@ -866,7 +961,7 @@ def take_exam(exam_id):
         flash("الاختبار غير موجود.", "danger")
         return redirect(url_for("student_dashboard", tab="exams"))
 
-    is_admin = user.role == "admin"
+    is_admin = (user.role or "").lower() == "admin"
     back_url = url_for("admin_dashboard") if is_admin else url_for("student_dashboard", tab="exams")
 
     attempt = (
@@ -979,7 +1074,7 @@ def require_admin():
     if not user:
         flash("يرجى تسجيل الدخول أولاً.", "warning")
         return None, redirect(url_for("auth", mode="login"))
-    if user.role != "admin":
+    if (user.role or "").lower() != "admin":
         flash("هذه الصفحة مخصصة للإدارة فقط.", "danger")
         return None, redirect(url_for("student_dashboard"))
     return user, None
@@ -994,8 +1089,14 @@ def admin_dashboard():
     show_login_modal = bool(session.pop("show_login_modal", False))
     selected_grade = (request.args.get("grade") or "").strip()
 
-    all_students = User.query.filter_by(role="student").order_by(User.id.desc()).all()
-    pending_students = [st for st in all_students if not st.is_active]
+    try:
+        all_users = User.query.order_by(User.id.desc()).all()
+        all_students = [u for u in all_users if (u.role or "").lower() != "admin"]
+    except Exception:
+        db.session.rollback()
+        all_students = []
+
+    pending_students = [st for st in all_students if not bool(st.is_active)]
 
     students_data = []
     students_by_grade = {g: [] for g in GRADES}
@@ -1006,25 +1107,45 @@ def admin_dashboard():
         if st.grade in students_by_grade:
             students_by_grade[st.grade].append(row)
 
-    all_weeks = WeekPackage.query.order_by(WeekPackage.order_num.asc(), WeekPackage.id.desc()).all()
-    if selected_grade:
-        weeks = [w for w in all_weeks if w.grade in (selected_grade, "ALL_GRADES")]
-    else:
-        weeks = all_weeks
+    try:
+        all_weeks = WeekPackage.query.order_by(WeekPackage.order_num.asc(), WeekPackage.id.desc()).all()
+    except Exception:
+        db.session.rollback()
+        all_weeks = []
+    weeks = [w for w in all_weeks if w.grade in (selected_grade, "ALL_GRADES")] if selected_grade else all_weeks
 
-    all_exams = Exam.query.order_by(Exam.id.desc()).all()
-    if selected_grade:
-        exams = [ex for ex in all_exams if ex.grade in (selected_grade, "ALL_GRADES")]
-    else:
-        exams = all_exams
+    try:
+        all_exams = Exam.query.order_by(Exam.id.desc()).all()
+    except Exception:
+        db.session.rollback()
+        all_exams = []
+    exams = [ex for ex in all_exams if ex.grade in (selected_grade, "ALL_GRADES")] if selected_grade else all_exams
 
-    codes_query = ActivationCode.query.order_by(ActivationCode.id.desc())
-    if selected_grade:
-        codes = codes_query.filter_by(grade=selected_grade).all()
-    else:
-        codes = codes_query.all()
+    try:
+        codes_query = ActivationCode.query.order_by(ActivationCode.id.desc())
+        codes = codes_query.filter_by(grade=selected_grade).all() if selected_grade else codes_query.all()
+    except Exception:
+        db.session.rollback()
+        codes = []
 
-    exam_results = ExamResult.query.order_by(ExamResult.id.desc()).all()
+    try:
+        exam_results = ExamResult.query.order_by(ExamResult.id.desc()).all()
+    except Exception:
+        db.session.rollback()
+        exam_results = []
+
+    try:
+        centers = Center.query.order_by(Center.id.asc()).all()
+    except Exception:
+        db.session.rollback()
+        centers = []
+
+    try:
+        announcements = Announcement.query.order_by(Announcement.id.desc()).all()
+    except Exception:
+        db.session.rollback()
+        announcements = []
+
     exams_map = {ex.id: ex.title for ex in all_exams}
 
     return render_template(
@@ -1041,8 +1162,8 @@ def admin_dashboard():
         exams=exams,
         content_sections=CONTENT_SECTIONS,
         codes=codes,
-        centers=Center.query.order_by(Center.id.asc()).all(),
-        announcements=Announcement.query.order_by(Announcement.id.desc()).all(),
+        centers=centers,
+        announcements=announcements,
         exam_results=exam_results,
         exams_map=exams_map,
     )
@@ -1055,7 +1176,7 @@ def toggle_student(student_id):
         return err_resp
 
     st = db.session.get(User, student_id)
-    if st and st.role == "student":
+    if st and (st.role or "").lower() != "admin":
         st.is_active = not bool(st.is_active)
         db.session.commit()
         flash("تم تحديث حالة حساب الطالب بنجاح.", "success")
