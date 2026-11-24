@@ -241,13 +241,80 @@ def init_db():
     try:
         db.create_all()
         inspector = inspect(db.engine)
-        if "exams" in inspector.get_table_names():
-            existing_cols = {c["name"] for c in inspector.get_columns("exams")}
-            if "grading_mode" not in existing_cols:
-                db.session.execute(text("ALTER TABLE exams ADD COLUMN grading_mode VARCHAR(20) DEFAULT 'instant'"))
-            if "grading_delay_hours" not in existing_cols:
-                db.session.execute(text("ALTER TABLE exams ADD COLUMN grading_delay_hours FLOAT DEFAULT 0.0"))
-            db.session.commit()
+        tables = set(inspector.get_table_names())
+
+        def ensure_columns(table_name, col_defs):
+            if table_name not in tables:
+                return
+            existing = {c["name"] for c in inspector.get_columns(table_name)}
+            for col_name, col_sql in col_defs:
+                if col_name not in existing:
+                    db.session.execute(
+                        text(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS {col_name} {col_sql}")
+                    )
+
+        ensure_columns("users", [
+            ("username", "VARCHAR(100)"),
+            ("full_name", "VARCHAR(160)"),
+            ("phone", "VARCHAR(40)"),
+            ("parent_phone", "VARCHAR(40)"),
+            ("governorate", "VARCHAR(80) DEFAULT 'الدقهلية'"),
+            ("grade", "VARCHAR(80)"),
+            ("role", "VARCHAR(20) DEFAULT 'student'"),
+            ("is_active", "BOOLEAN DEFAULT FALSE"),
+            ("onboarding_done", "BOOLEAN DEFAULT TRUE"),
+            ("password_hash", "VARCHAR(255)"),
+            ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+        ])
+
+        ensure_columns("platform_settings", [
+            ("platform_name", "VARCHAR(200) DEFAULT 'الرياضة أسهل وأوضح مع مستر أحمد جمال'"),
+            ("teacher_name", "VARCHAR(120) DEFAULT 'مستر / أحمد جمال'"),
+            ("teacher_bio", "TEXT"),
+            ("teacher_image", "VARCHAR(300)"),
+            ("whatsapp_number", "VARCHAR(50) DEFAULT '201000000000'"),
+            ("facebook_url", "VARCHAR(300)"),
+            ("instagram_url", "VARCHAR(300)"),
+            ("tiktok_url", "VARCHAR(300)"),
+            ("youtube_url", "VARCHAR(300)"),
+            ("pass_percentage_required", "FLOAT DEFAULT 50.0"),
+        ])
+
+        ensure_columns("week_packages", [
+            ("description", "TEXT"),
+            ("grade", "VARCHAR(80)"),
+            ("order_num", "INTEGER DEFAULT 1"),
+            ("price", "FLOAT DEFAULT 0.0"),
+            ("is_free", "BOOLEAN DEFAULT FALSE"),
+            ("is_published", "BOOLEAN DEFAULT TRUE"),
+            ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+        ])
+
+        ensure_columns("course_contents", [
+            ("section_key", "VARCHAR(50) DEFAULT 'explanation'"),
+            ("content_type", "VARCHAR(50) DEFAULT 'video_link'"),
+            ("source_path", "VARCHAR(400)"),
+            ("duration_or_notes", "VARCHAR(300)"),
+            ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+        ])
+
+        ensure_columns("exams", [
+            ("grade", "VARCHAR(80)"),
+            ("duration_minutes", "INTEGER DEFAULT 20"),
+            ("grading_mode", "VARCHAR(20) DEFAULT 'instant'"),
+            ("grading_delay_hours", "FLOAT DEFAULT 0.0"),
+            ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+        ])
+
+        ensure_columns("activation_codes", [
+            ("grade", "VARCHAR(80)"),
+            ("week_id", "INTEGER"),
+            ("is_used", "BOOLEAN DEFAULT FALSE"),
+            ("used_by", "INTEGER"),
+            ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+        ])
+
+        db.session.commit()
 
         if not PlatformSettings.query.first():
             db.session.add(PlatformSettings())
