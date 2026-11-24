@@ -92,6 +92,14 @@
       transform: translateY(-2px);
       border-color: rgba(14, 165, 233, 0.45);
     }
+    .week-cover-img {
+      width: 100%;
+      height: 165px;
+      object-fit: cover;
+      border-radius: 12px;
+      margin-bottom: 12px;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+    }
     .login-confirm-backdrop {
       position: fixed;
       inset: 0;
@@ -312,6 +320,10 @@
             </a>
           </div>
 
+          {% if active_week.image_path %}
+            <img src="{{ active_week.image_path }}" alt="{{ active_week.title }}" class="week-cover-img mb-3" />
+          {% endif %}
+
           <ul class="nav nav-pills gap-2 mb-4 border-bottom border-secondary border-opacity-25 pb-3" role="tablist">
             <li class="nav-item" role="presentation">
               <button class="nav-link active fw-bold rounded-3" data-bs-toggle="pill" data-bs-target="#tabExplanation" type="button">
@@ -444,6 +456,9 @@
               <div class="col-md-6 col-lg-4">
                 <div class="week-card d-flex flex-column justify-content-between">
                   <div>
+                    {% if w.image_path %}
+                      <img src="{{ w.image_path }}" alt="{{ w.title }}" class="week-cover-img" />
+                    {% endif %}
                     <div class="d-flex justify-content-between align-items-center mb-2">
                       <span class="badge bg-info bg-opacity-15 text-info">أسبوع #{{ w.order_num }}</span>
                       {% if info.can_open %}
@@ -600,6 +615,9 @@
               <div class="col-md-4">
                 <div class="week-card d-flex flex-column justify-content-between">
                   <div>
+                    {% if w.image_path %}
+                      <img src="{{ w.image_path }}" alt="{{ w.title }}" class="week-cover-img" />
+                    {% endif %}
                     <span class="badge bg-info bg-opacity-15 text-info mb-2">{{ w.grade }}</span>
                     <h3 class="h6 fw-bold text-white mb-2">{{ w.title }}</h3>
                     <p class="small text-secondary mb-3">{{ w.description or 'شرح مبسط وتدريبات متدرجة.' }}</p>

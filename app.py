@@ -189,6 +189,7 @@ class WeekPackage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, nullable=True)
+    image_path = db.Column(db.String(400), nullable=True)
     grade = db.Column(db.String(80), nullable=False)
     order_num = db.Column(db.Integer, default=1)
     price = db.Column(db.Float, default=0.0)
@@ -386,6 +387,7 @@ def init_db():
 
         ensure_columns("week_packages", [
             ("description", "TEXT"),
+            ("image_path", "VARCHAR(400)"),
             ("grade", "VARCHAR(80)"),
             ("order_num", "INTEGER DEFAULT 1"),
             ("price", "FLOAT DEFAULT 0.0"),
@@ -1370,9 +1372,13 @@ def add_week():
         return redirect(url_for("admin_dashboard"))
 
     try:
+        img_file = request.files.get("week_image") or request.files.get("image")
+        saved_week_img = save_uploaded_file(img_file)
+
         week = WeekPackage(
             title=title,
             description=description,
+            image_path=saved_week_img,
             grade=grade,
             order_num=order_num,
             price=price,
