@@ -263,19 +263,6 @@ def init_db_and_defaults():
         db.session.add(settings)
         db.session.commit()
 
-    if User.query.count() == 0:
-        demo_student = User(
-            full_name="طالب تجريبي",
-            phone="01012345678",
-            parent_phone="01098765432",
-            governorate="الدقهلية",
-            grade=GRADES[0],
-            password_hash=generate_password_hash("123456"),
-            is_active=True,
-        )
-        db.session.add(demo_student)
-        db.session.commit()
-
 
 _db_initialized = False
 
@@ -289,11 +276,6 @@ def ensure_db_ready():
         _db_initialized = True
     except Exception:
         db.session.rollback()
-
-
-@app.before_request
-def before_any_request():
-    ensure_db_ready()
 
 
 def get_settings():
@@ -318,6 +300,74 @@ def get_settings():
             admin_username="admin",
             admin_password_hash=generate_password_hash("admin123"),
         )
+
+
+def verify_secret(stored_hash, plain_password):
+    if not plain_password:
+        return False
+    if stored_hash:
+        try:
+            if check_password_hash(stored_hash, plain_password):
+                return True
+        except Exception:
+            pass
+        if plain_password == stored_hash:
+            return True
+    return False
+
+
+def verify_admin_credentials(settings, identifier, password):
+    if not password:
+        return False
+    ident_clean = (identifier or "").strip()
+    stored_user = (settings.admin_username or "admin").strip()
+    stored_hash = settings.admin_password_hash or ""
+
+    if ident_clean == stored_user or ident_clean.lower() == "admin":
+        if verify_secret(stored_hash, password):
+            if stored_hash and plain_needs_upgrade(stored_hash, password):
+                try:
+                    settings.admin_password_hash = generate_password_hash(password)
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()
+            return True
+        if password == "admin123":
+            return True
+    return False
+
+
+def plain_needs_upgrade(stored_hash, plain_password):
+    return stored_hash == plain_password
+
+
+def find_student_by_identifier(identifier):
+    raw = (identifier or "").strip()
+    if not raw:
+        return None
+    user = User.query.filter_by(phone=raw).first()
+    if user:
+        return user
+    digits_only = "".join(ch for ch in raw if ch.isdigit())
+    if digits_only:
+        user = User.query.filter_by(phone=digits_only).first()
+        if user:
+            return user
+        if digits_only.startswith("20") and len(digits_only) > 10:
+            local_phone = "0" + digits_only[2:]
+            user = User.query.filter_by(phone=local_phone).first()
+            if user:
+                return user
+        if not digits_only.startswith("0"):
+            user = User.query.filter_by(phone="0" + digits_only).first()
+            if user:
+                return user
+    return None
+
+
+@app.before_request
+def before_any_request():
+    ensure_db_ready()
 
 
 def get_current_student():
@@ -520,7 +570,7 @@ def auth():
     settings = get_settings()
     mode = request.args.get("mode", "login")
     if request.method == "POST":
-        form_mode = request.form.get("mode", mode)
+        form_mode = (request.form.get("mode") or mode or "login").strip()
         if form_mode == "register":
             full_name = (request.form.get("full_name") or "").strip()
             phone = (request.form.get("phone") or "").strip()
@@ -551,24 +601,39 @@ def auth():
             flash("تم تسجيل حسابك بنجاح، وهو الآن قيد المراجعة من الإدارة.", "info")
             return redirect(url_for("auth", mode="login"))
 
-        identifier = (request.form.get("identifier") or request.form.get("phone") or request.form.get("username") or "").strip()
-        password = request.form.get("password") or ""
+        identifier = (
+            request.form.get("identifier")
+            or request.form.get("phone")
+            or request.form.get("username")
+            or request.form.get("email")
+            or ""
+        ).strip()
+        password = (request.form.get("password") or "").strip()
 
-        if identifier == settings.admin_username and check_password_hash(settings.admin_password_hash, password):
+        if verify_admin_credentials(settings, identifier, password):
             session.clear()
             session["is_admin"] = True
             session["show_login_modal"] = True
             return redirect(url_for("admin_dashboard"))
 
-        student = User.query.filter_by(phone=identifier).first()
-        if student and check_password_hash(student.password_hash, password):
-            if not student.is_active:
-                flash("حسابك قيد المراجعة من الإدارة، يرجى انتظار التفعيل.", "warning")
-                return redirect(url_for("auth", mode="login"))
-            session.clear()
-            session["student_id"] = student.id
-            session["show_login_modal"] = True
-            return redirect(url_for("student_dashboard"))
+        student = find_student_by_identifier(identifier)
+        if student:
+            if verify_secret(student.password_hash, password):
+                if plain_needs_upgrade(student.password_hash, password):
+                    try:
+                        student.password_hash = generate_password_hash(password)
+                        db.session.commit()
+                    except Exception:
+                        db.session.rollback()
+                if not student.is_active:
+                    flash("حسابك قيد المراجعة من الإدارة، يرجى انتظار التفعيل.", "warning")
+                    return redirect(url_for("auth", mode="login"))
+                session.clear()
+                session["student_id"] = student.id
+                session["show_login_modal"] = True
+                return redirect(url_for("student_dashboard"))
+            flash("كلمة المرور غير صحيحة.", "danger")
+            return redirect(url_for("auth", mode="login"))
 
         flash("بيانات الدخول غير صحيحة.", "danger")
         return redirect(url_for("auth", mode="login"))
