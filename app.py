@@ -12,13 +12,22 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-UPLOAD_ROOT = os.path.join(BASE_DIR, "static", "uploads")
+IS_VERCEL = bool(os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV") or os.path.exists("/var/task"))
+
+if IS_VERCEL:
+    UPLOAD_ROOT = "/tmp/uploads"
+else:
+    UPLOAD_ROOT = os.path.join(BASE_DIR, "static", "uploads")
+
 UPLOAD_IMAGES = os.path.join(UPLOAD_ROOT, "images")
 UPLOAD_VIDEOS = os.path.join(UPLOAD_ROOT, "videos")
 UPLOAD_FILES = os.path.join(UPLOAD_ROOT, "files")
 
 for folder in (UPLOAD_ROOT, UPLOAD_IMAGES, UPLOAD_VIDEOS, UPLOAD_FILES):
-    os.makedirs(folder, exist_ok=True)
+    try:
+        os.makedirs(folder, exist_ok=True)
+    except OSError:
+        pass
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "math-platform-secret-key-2026")
@@ -29,7 +38,7 @@ if database_url:
         database_url = database_url.replace("postgres://", "postgresql://", 1)
     app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 else:
-    default_db_path = os.path.join(BASE_DIR, "math_platform.db")
+    default_db_path = "/tmp/math_platform.db" if IS_VERCEL else os.path.join(BASE_DIR, "math_platform.db")
     app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{default_db_path}"
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
@@ -268,25 +277,47 @@ def init_db_and_defaults():
         db.session.commit()
 
 
-with app.app_context():
+_db_initialized = False
+
+
+def ensure_db_ready():
+    global _db_initialized
+    if _db_initialized:
+        return
     try:
         init_db_and_defaults()
+        _db_initialized = True
     except Exception:
-        pass
+        db.session.rollback()
+
+
+@app.before_request
+def before_any_request():
+    ensure_db_ready()
 
 
 def get_settings():
-    s = PlatformSettings.query.first()
-    if not s:
-        s = PlatformSettings(
+    ensure_db_ready()
+    try:
+        s = PlatformSettings.query.first()
+        if not s:
+            s = PlatformSettings(
+                platform_name="منصة الرياضيات",
+                teacher_name="مستر / أحمد جمال",
+                admin_username="admin",
+                admin_password_hash=generate_password_hash("admin123"),
+            )
+            db.session.add(s)
+            db.session.commit()
+        return s
+    except Exception:
+        db.session.rollback()
+        return PlatformSettings(
             platform_name="منصة الرياضيات",
             teacher_name="مستر / أحمد جمال",
             admin_username="admin",
             admin_password_hash=generate_password_hash("admin123"),
         )
-        db.session.add(s)
-        db.session.commit()
-    return s
 
 
 def get_current_student():
@@ -329,7 +360,10 @@ def admin_required(fn):
 def save_uploaded_file(file_storage, target_dir, public_prefix):
     if not file_storage or not file_storage.filename:
         return None
-    os.makedirs(target_dir, exist_ok=True)
+    try:
+        os.makedirs(target_dir, exist_ok=True)
+    except OSError:
+        pass
     clean_name = secure_filename(file_storage.filename)
     if not clean_name:
         clean_name = "file.bin"
