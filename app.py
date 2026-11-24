@@ -866,10 +866,23 @@ def student_dashboard():
         return redirect(url_for("admin_dashboard"))
 
     show_login_modal = bool(session.pop("show_login_modal", False))
-    show_onboarding = not bool(user.onboarding_done and user.full_name and user.grade)
-    pending_approval = not bool(user.is_active)
 
-    announcements = Announcement.query.order_by(Announcement.id.desc()).all()
+    try:
+        show_onboarding = not bool(user.onboarding_done and user.full_name and user.grade)
+    except Exception:
+        show_onboarding = False
+
+    try:
+        pending_approval = not bool(user.is_active)
+    except Exception:
+        pending_approval = False
+
+    try:
+        announcements = Announcement.query.order_by(Announcement.id.desc()).all()
+    except Exception:
+        db.session.rollback()
+        announcements = []
+
     if pending_approval:
         return render_template(
             "student.html",
@@ -884,43 +897,72 @@ def student_dashboard():
     tab = request.args.get("tab", "overview")
     week_id_raw = request.args.get("week_id")
 
-    user_norm_grade = normalize_grade_label(user.grade)
-    weeks = weeks_for_grade(user_norm_grade)
-    sub_ids = {
-        s.week_id for s in WeekSubscription.query.filter_by(user_id=user.id).all()
-    }
-    subscribed_weeks = [w for w in weeks if w.is_free or w.id in sub_ids]
+    try:
+        user_norm_grade = normalize_grade_label(user.grade)
+        weeks = weeks_for_grade(user_norm_grade)
+    except Exception:
+        db.session.rollback()
+        user_norm_grade = ""
+        weeks = []
+
+    try:
+        sub_ids = {
+            s.week_id for s in WeekSubscription.query.filter_by(user_id=user.id).all()
+        }
+    except Exception:
+        db.session.rollback()
+        sub_ids = set()
+
+    subscribed_weeks = [w for w in weeks if getattr(w, "is_free", False) or w.id in sub_ids]
 
     week_access_map = {}
     for w in weeks:
-        can_open = bool(w.is_free or (w.id in sub_ids))
+        can_open = bool(getattr(w, "is_free", False) or (w.id in sub_ids))
         lock_reason = "" if can_open else "هذا الأسبوع أو الباقة تتطلب كود تفعيل أو اشتراكاً."
         week_access_map[w.id] = {"can_open": can_open, "lock_reason": lock_reason}
 
     active_week = None
     active_week_info = None
     grouped_contents = {"explanation": [], "training": [], "exam_section": []}
-    watched_ids = {
-        wc.content_id for wc in WatchedContent.query.filter_by(user_id=user.id).all()
-    }
+
+    try:
+        watched_ids = {
+            wc.content_id for wc in WatchedContent.query.filter_by(user_id=user.id).all()
+        }
+    except Exception:
+        db.session.rollback()
+        watched_ids = set()
 
     if week_id_raw and week_id_raw.isdigit():
-        candidate = db.session.get(WeekPackage, int(week_id_raw))
-        if candidate and candidate.is_published and normalize_grade_label(candidate.grade) in (user_norm_grade, "ALL_GRADES", ""):
-            active_week = candidate
-            active_week_info = week_access_map.get(
-                candidate.id,
-                {"can_open": bool(candidate.is_free or candidate.id in sub_ids), "lock_reason": "مغلق"},
-            )
-            for c in sorted(candidate.contents, key=lambda x: x.id):
-                sec = c.section_key if c.section_key in grouped_contents else "explanation"
-                grouped_contents[sec].append(c)
+        try:
+            candidate = db.session.get(WeekPackage, int(week_id_raw))
+            if candidate and getattr(candidate, "is_published", True) and normalize_grade_label(candidate.grade) in (user_norm_grade, "ALL_GRADES", ""):
+                active_week = candidate
+                active_week_info = week_access_map.get(
+                    candidate.id,
+                    {"can_open": bool(getattr(candidate, "is_free", False) or candidate.id in sub_ids), "lock_reason": "مغلق"},
+                )
+                for c in sorted(getattr(candidate, "contents", []) or [], key=lambda x: x.id):
+                    sec = c.section_key if c.section_key in grouped_contents else "explanation"
+                    grouped_contents[sec].append(c)
+        except Exception:
+            db.session.rollback()
+            active_week = None
 
-    exams = exams_for_grade(user_norm_grade)
+    try:
+        exams = exams_for_grade(user_norm_grade)
+    except Exception:
+        db.session.rollback()
+        exams = []
+
     results_by_exam = {}
-    for r in ExamResult.query.filter_by(user_id=user.id).order_by(ExamResult.id.desc()).all():
-        if r.exam_id not in results_by_exam:
-            results_by_exam[r.exam_id] = r
+    try:
+        for r in ExamResult.query.filter_by(user_id=user.id).order_by(ExamResult.id.desc()).all():
+            if r.exam_id not in results_by_exam:
+                results_by_exam[r.exam_id] = r
+    except Exception:
+        db.session.rollback()
+        results_by_exam = {}
 
     level_info = compute_student_level(user)
 
