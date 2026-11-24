@@ -1,9 +1,10 @@
 import os
 import csv
+import json
 import uuid
 import random
 import string
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 from urllib.parse import quote, urlparse, parse_qsl, urlencode, urlunparse
 from flask import (
@@ -165,9 +166,12 @@ class Exam(db.Model):
     grade = db.Column(db.String(80), nullable=False)
     week_id = db.Column(db.Integer, db.ForeignKey("week.id"), nullable=True)
     duration_minutes = db.Column(db.Integer, default=20)
+    grading_mode = db.Column(db.String(20), default="instant")
+    grading_delay_hours = db.Column(db.Float, default=0.0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     questions = db.relationship("ExamQuestion", backref="exam", cascade="all, delete-orphan")
     results = db.relationship("ExamResult", backref="exam", cascade="all, delete-orphan")
+    attempts = db.relationship("ExamAttempt", backref="exam", cascade="all, delete-orphan")
 
 
 class ExamQuestion(db.Model):
@@ -190,6 +194,20 @@ class ExamResult(db.Model):
     percentage = db.Column(db.Float, nullable=False)
     submitted_at = db.Column(db.DateTime, default=datetime.utcnow)
     student = db.relationship("User", backref="exam_results")
+
+
+class ExamAttempt(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    exam_id = db.Column(db.Integer, db.ForeignKey("exam.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    serial_code = db.Column(db.String(20), nullable=False)
+    attempt_number = db.Column(db.Integer, default=1)
+    status = db.Column(db.String(20), default="in_progress")
+    started_at = db.Column(db.DateTime, default=datetime.utcnow)
+    submitted_at = db.Column(db.DateTime, nullable=True)
+    result_available_at = db.Column(db.DateTime, nullable=True)
+    time_spent_seconds = db.Column(db.Integer, default=0)
+    answers_json = db.Column(db.Text, default="{}")
 
 
 class Enrollment(db.Model):
@@ -225,6 +243,143 @@ class Announcement(db.Model):
     message = db.Column(db.Text, nullable=False)
     grade = db.Column(db.String(80), default="")
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+def _as_utc(dt):
+    if not dt:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def _format_dt_cairo(dt):
+    utc_dt = _as_utc(dt)
+    if not utc_dt:
+        return "—"
+    return utc_dt.astimezone(timezone(timedelta(hours=2))).strftime("%Y-%m-%d %I:%M %p")
+
+
+def _format_duration_cairo(seconds):
+    sec = max(0, int(seconds or 0))
+    mins, rem = divmod(sec, 60)
+    hrs, mins = divmod(mins, 60)
+    if hrs:
+        return f"{hrs} ساعة و {mins} دقيقة و {rem} ثانية"
+    return f"{mins} دقيقة و {rem} ثانية"
+
+
+def _generate_serial(length=7):
+    return "".join(random.choices(string.digits, k=length))
+
+
+def compute_exam_result_available_at(exam: Exam, submitted_at_utc: datetime):
+    mode = (exam.grading_mode or "instant").strip().lower()
+    if mode == "delayed":
+        hours = float(exam.grading_delay_hours or 0.0)
+        if hours > 0:
+            return submitted_at_utc + timedelta(hours=hours)
+    return submitted_at_utc
+
+
+def evaluate_db_attempt(attempt: ExamAttempt, exam: Exam, questions: list, now_utc: datetime = None):
+    if now_utc is None:
+        now_utc = datetime.now(timezone.utc)
+
+    try:
+        answers = json.loads(attempt.answers_json or "{}")
+    except Exception:
+        answers = {}
+
+    total_questions = len(questions)
+    solved_count = sum(
+        1 for q in questions
+        if answers.get(str(q.id)) is not None and str(answers.get(str(q.id))).strip() != ""
+    )
+
+    started_utc = _as_utc(attempt.started_at) or now_utc
+    submitted_utc = _as_utc(attempt.submitted_at)
+
+    duration_sec = int(float(exam.duration_minutes or 20) * 60)
+    elapsed_sec = int(attempt.time_spent_seconds or 0)
+    if submitted_utc is None:
+        live_elapsed = int((now_utc - started_utc).total_seconds())
+        elapsed_sec = max(elapsed_sec, live_elapsed)
+    remaining_sec = max(0, duration_sec - elapsed_sec)
+
+    if submitted_utc is None:
+        return {
+            "status": "in_progress",
+            "result_ready": False,
+            "score": None,
+            "total_marks": total_questions,
+            "solved_count": solved_count,
+            "total_questions": total_questions,
+            "remaining_seconds": remaining_sec,
+            "time_spent_label": _format_duration_cairo(elapsed_sec),
+            "started_at_label": _format_dt_cairo(started_utc),
+            "available_at_label": None,
+            "details": [],
+        }
+
+    avail_utc = _as_utc(attempt.result_available_at) or compute_exam_result_available_at(exam, submitted_utc)
+    result_ready = now_utc >= avail_utc
+
+    if not result_ready:
+        return {
+            "status": "pending_grading",
+            "result_ready": False,
+            "score": None,
+            "total_marks": total_questions,
+            "solved_count": solved_count,
+            "total_questions": total_questions,
+            "remaining_seconds": 0,
+            "time_spent_label": _format_duration_cairo(elapsed_sec),
+            "started_at_label": _format_dt_cairo(started_utc),
+            "available_at_label": _format_dt_cairo(avail_utc),
+            "details": [],
+        }
+
+    correct_count = 0
+    details = []
+    for idx, q in enumerate(questions, start=1):
+        qid_str = str(q.id)
+        ans_val = str(answers.get(qid_str) or "").strip().upper()
+        corr_val = str(q.correct_option or "").strip().upper()
+        is_ok = (ans_val != "" and ans_val == corr_val)
+        if is_ok:
+            correct_count += 1
+
+        opt_map = {
+            "A": q.option_a,
+            "B": q.option_b,
+            "C": q.option_c,
+            "D": q.option_d,
+        }
+        details.append({
+            "number": idx,
+            "question_id": qid_str,
+            "text": q.question_text,
+            "student_option": ans_val,
+            "student_label": opt_map.get(ans_val, "لم تُجب"),
+            "correct_option": corr_val,
+            "correct_label": opt_map.get(corr_val, corr_val),
+            "is_correct": is_ok,
+        })
+
+    return {
+        "status": "graded",
+        "result_ready": True,
+        "score": correct_count,
+        "total_marks": total_questions,
+        "solved_count": solved_count,
+        "total_questions": total_questions,
+        "remaining_seconds": 0,
+        "time_spent_label": _format_duration_cairo(elapsed_sec),
+        "started_at_label": _format_dt_cairo(started_utc),
+        "available_at_label": _format_dt_cairo(avail_utc),
+        "details": details,
+    }
 
 
 def sync_excel_backup():
@@ -323,6 +478,8 @@ def ensure_schema_columns():
         "ALTER TABLE platform_settings ADD COLUMN IF NOT EXISTS youtube_url VARCHAR(300) DEFAULT ''",
         "ALTER TABLE platform_settings ADD COLUMN IF NOT EXISTS auto_activate_students BOOLEAN DEFAULT FALSE",
         "ALTER TABLE platform_settings ADD COLUMN IF NOT EXISTS pass_percentage_required FLOAT DEFAULT 50.0",
+        "ALTER TABLE exam ADD COLUMN IF NOT EXISTS grading_mode VARCHAR(20) DEFAULT 'instant'",
+        "ALTER TABLE exam ADD COLUMN IF NOT EXISTS grading_delay_hours FLOAT DEFAULT 0.0",
     ]
     for stmt in alter_statements:
         try:
@@ -962,7 +1119,7 @@ def redeem_code():
     return redirect(url_for("student_dashboard"))
 
 
-@app.route("/exam/<int:exam_id>", methods=["GET", "POST"])
+@app.route("/exam/<int:exam_id>", methods=["GET"])
 @login_required
 def take_exam(exam_id):
     user = db.session.get(User, session["user_id"])
@@ -973,38 +1130,201 @@ def take_exam(exam_id):
     if not exam:
         return redirect(url_for("student_dashboard"))
 
-    if request.method == "POST":
-        questions = exam.questions
-        total = len(questions)
-        correct = 0
+    questions = exam.questions
+    attempt = (
+        ExamAttempt.query.filter_by(exam_id=exam.id, user_id=user.id)
+        .order_by(ExamAttempt.attempt_number.desc(), ExamAttempt.id.desc())
+        .first()
+    )
 
-        for q in questions:
-            chosen = (request.form.get(f"q_{q.id}") or "").strip().upper()
-            if chosen == q.correct_option:
-                correct += 1
+    try:
+        saved_answers = json.loads(attempt.answers_json or "{}") if attempt else {}
+    except Exception:
+        saved_answers = {}
 
-        pct = round((correct / total) * 100.0, 1) if total > 0 else 0.0
+    evaluation = evaluate_db_attempt(attempt, exam, questions) if attempt else None
 
+    if attempt and attempt.status == "submitted" and evaluation and evaluation["result_ready"]:
+        pct = round((evaluation["score"] / evaluation["total_questions"]) * 100.0, 1) if evaluation["total_questions"] > 0 else 0.0
+        existing_res = ExamResult.query.filter_by(exam_id=exam.id, user_id=user.id).first()
+        if existing_res:
+            if existing_res.score != evaluation["score"] or existing_res.percentage != pct:
+                existing_res.score = evaluation["score"]
+                existing_res.total_questions = evaluation["total_questions"]
+                existing_res.percentage = pct
+                db.session.commit()
+                sync_excel_backup()
+        elif evaluation["total_questions"] > 0:
+            db.session.add(ExamResult(
+                exam_id=exam.id,
+                user_id=user.id,
+                score=evaluation["score"],
+                total_questions=evaluation["total_questions"],
+                percentage=pct,
+                submitted_at=attempt.submitted_at or datetime.utcnow()
+            ))
+            db.session.commit()
+            sync_excel_backup()
+
+    return render_template(
+        "exam_full.html",
+        exam=exam,
+        questions=questions,
+        user=user,
+        attempt=attempt,
+        saved_answers=saved_answers,
+        evaluation=evaluation,
+        total_marks=len(questions),
+        is_admin=(user.role == "admin"),
+        start_url=url_for("start_exam_attempt", exam_id=exam.id),
+        submit_url=url_for("submit_exam_attempt", exam_id=exam.id),
+        admin_settings_url=url_for("update_exam_grading_settings", exam_id=exam.id),
+        back_url=url_for("student_dashboard")
+    )
+
+
+@app.route("/exam/<int:exam_id>/start", methods=["POST"])
+@login_required
+def start_exam_attempt(exam_id):
+    user = db.session.get(User, session["user_id"])
+    if user.role != "admin" and not user.is_active:
+        flash("سوف يتم مراجعة حساباتكم ولن يظهر المحتوى إلا بعد قبول الحساب.", "warning")
+        return redirect(url_for("student_dashboard"))
+    exam = db.session.get(Exam, exam_id)
+    if not exam:
+        return redirect(url_for("student_dashboard"))
+
+    prev_attempt = (
+        ExamAttempt.query.filter_by(exam_id=exam.id, user_id=user.id)
+        .order_by(ExamAttempt.attempt_number.desc(), ExamAttempt.id.desc())
+        .first()
+    )
+    next_num = (prev_attempt.attempt_number + 1) if prev_attempt else 1
+
+    new_attempt = ExamAttempt(
+        exam_id=exam.id,
+        user_id=user.id,
+        serial_code=_generate_serial(),
+        attempt_number=next_num,
+        status="in_progress",
+        started_at=datetime.utcnow(),
+        submitted_at=None,
+        result_available_at=None,
+        time_spent_seconds=0,
+        answers_json="{}"
+    )
+    db.session.add(new_attempt)
+    db.session.commit()
+    return redirect(url_for("take_exam", exam_id=exam.id))
+
+
+@app.route("/exam/<int:exam_id>/submit", methods=["POST"])
+@login_required
+def submit_exam_attempt(exam_id):
+    user = db.session.get(User, session["user_id"])
+    if user.role != "admin" and not user.is_active:
+        flash("سوف يتم مراجعة حساباتكم ولن يظهر المحتوى إلا بعد قبول الحساب.", "warning")
+        return redirect(url_for("student_dashboard"))
+    exam = db.session.get(Exam, exam_id)
+    if not exam:
+        return redirect(url_for("student_dashboard"))
+
+    attempt = (
+        ExamAttempt.query.filter_by(exam_id=exam.id, user_id=user.id)
+        .order_by(ExamAttempt.attempt_number.desc(), ExamAttempt.id.desc())
+        .first()
+    )
+    if not attempt:
+        return redirect(url_for("take_exam", exam_id=exam.id))
+
+    answers = {}
+    for q in exam.questions:
+        chosen = (request.form.get(f"q_{q.id}") or "").strip().upper()
+        if chosen in ("A", "B", "C", "D"):
+            answers[str(q.id)] = chosen
+
+    attempt.answers_json = json.dumps(answers, ensure_ascii=False)
+    now_utc = datetime.now(timezone.utc)
+    started_utc = _as_utc(attempt.started_at) or now_utc
+    attempt.time_spent_seconds = max(0, int((now_utc - started_utc).total_seconds()))
+
+    action_type = (request.form.get("action_type") or "submit").strip().lower()
+    if action_type == "save_later":
+        attempt.status = "in_progress"
+        db.session.commit()
+        flash("تم حفظ إجاباتك مؤقتًا، يمكنك استكمال الاختبار لاحقًا قبل انتهاء الوقت.", "info")
+        return redirect(url_for("take_exam", exam_id=exam.id))
+
+    submitted_naive = now_utc.replace(tzinfo=None)
+    attempt.submitted_at = submitted_naive
+    avail_utc = compute_exam_result_available_at(exam, now_utc)
+    attempt.result_available_at = avail_utc.replace(tzinfo=None)
+    attempt.status = "submitted"
+
+    evaluation = evaluate_db_attempt(attempt, exam, exam.questions, now_utc=now_utc)
+    total = len(exam.questions)
+
+    if evaluation["result_ready"] and total > 0:
+        correct = evaluation["score"]
+        pct = round((correct / total) * 100.0, 1)
         existing_res = ExamResult.query.filter_by(exam_id=exam.id, user_id=user.id).first()
         if existing_res:
             existing_res.score = correct
             existing_res.total_questions = total
             existing_res.percentage = pct
-            existing_res.submitted_at = datetime.utcnow()
+            existing_res.submitted_at = submitted_naive
         else:
             db.session.add(ExamResult(
                 exam_id=exam.id,
                 user_id=user.id,
                 score=correct,
                 total_questions=total,
-                percentage=pct
+                percentage=pct,
+                submitted_at=submitted_naive
             ))
         db.session.commit()
         sync_excel_backup()
-        flash(f"تم تسليم الامتحان! درجتك: {correct} من {total} ({pct}%).", "success")
-        return redirect(url_for("student_dashboard"))
+        flash(f"تم تسليم الاختبار وتصحيحه تلقائيًا! درجتك: {correct} من {total} ({pct}%).", "success")
+    else:
+        db.session.commit()
+        flash(f"تم تسليم الاختبار بنجاح، وستظهر النتيجة بعد المدة المحددة في: {evaluation['available_at_label']}.", "info")
 
-    return render_template("exam.html", exam=exam, user=user)
+    return redirect(url_for("take_exam", exam_id=exam.id))
+
+
+@app.route("/admin/exam/<int:exam_id>/grading-settings", methods=["POST"])
+@admin_required
+def update_exam_grading_settings(exam_id):
+    exam = db.session.get(Exam, exam_id)
+    if not exam:
+        return redirect(url_for("admin_dashboard"))
+
+    mode = (request.form.get("grading_mode") or "instant").strip().lower()
+    hours_raw = request.form.get("grading_delay_hours")
+    try:
+        hours = float(hours_raw or 0.0)
+    except Exception:
+        hours = 0.0
+
+    if mode == "delayed" and hours > 0:
+        exam.grading_mode = "delayed"
+        exam.grading_delay_hours = hours
+        for att in ExamAttempt.query.filter_by(exam_id=exam.id).all():
+            if att.submitted_at:
+                sub_utc = _as_utc(att.submitted_at)
+                att.result_available_at = (sub_utc + timedelta(hours=hours)).replace(tzinfo=None)
+        flash(f"تم ضبط تصحيح ({exam.title}) بعد ({hours}) ساعة من التسليم.", "success")
+    else:
+        exam.grading_mode = "instant"
+        exam.grading_delay_hours = 0.0
+        for att in ExamAttempt.query.filter_by(exam_id=exam.id).all():
+            if att.submitted_at:
+                sub_utc = _as_utc(att.submitted_at)
+                att.result_available_at = sub_utc.replace(tzinfo=None)
+        flash(f"تم ضبط ({exam.title}) على التصحيح التلقائي الفوري.", "success")
+
+    db.session.commit()
+    return redirect(url_for("take_exam", exam_id=exam.id))
 
 
 @app.route("/admin")
@@ -1275,16 +1595,30 @@ def add_exam():
     grade = request.form.get("grade", "").strip()
     week_id = request.form.get("week_id", type=int)
     duration_minutes = request.form.get("duration_minutes", 20, type=int)
+    grading_mode = (request.form.get("grading_mode") or "instant").strip().lower()
+    try:
+        grading_delay_hours = float(request.form.get("grading_delay_hours") or 0.0)
+    except Exception:
+        grading_delay_hours = 0.0
 
     if not title or not grade:
         flash("يرجى إدخال عنوان الاختبار واختيار الصف الدراسي.", "warning")
         return redirect(url_for("admin_dashboard"))
 
+    if grading_mode == "delayed" and grading_delay_hours > 0:
+        clean_mode = "delayed"
+        clean_hours = grading_delay_hours
+    else:
+        clean_mode = "instant"
+        clean_hours = 0.0
+
     exam = Exam(
         title=title,
         grade=grade,
         week_id=week_id if week_id and week_id > 0 else None,
-        duration_minutes=duration_minutes
+        duration_minutes=duration_minutes,
+        grading_mode=clean_mode,
+        grading_delay_hours=clean_hours
     )
     db.session.add(exam)
     db.session.commit()
