@@ -73,6 +73,64 @@ CONTENT_SECTIONS = [
 DEVELOPER_CREDIT = "تم التطوير بواسطة م/ عبد العزيز أمير"
 
 
+def normalize_grade_label(raw_grade):
+    g = (raw_grade or "").strip()
+    if not g:
+        return ""
+    if g in ("ALL_GRADES", *GRADES):
+        return g
+
+    compact = re.sub(r"\s+", " ", g)
+    mapping = {
+        "أولى إعدادي": "الأول الإعدادي",
+        "اولى اعدادي": "الأول الإعدادي",
+        "اول اعدادي": "الأول الإعدادي",
+        "الأول اعدادي": "الأول الإعدادي",
+        "الصف الأول الإعدادي": "الأول الإعدادي",
+        "الصف الاول الاعدادي": "الأول الإعدادي",
+        "1 إعدادي": "الأول الإعدادي",
+        "1 اعدادي": "الأول الإعدادي",
+        "ثانية إعدادي": "الثاني الإعدادي",
+        "تانية اعدادي": "الثاني الإعدادي",
+        "ثاني اعدادي": "الثاني الإعدادي",
+        "الثاني اعدادي": "الثاني الإعدادي",
+        "الصف الثاني الإعدادي": "الثاني الإعدادي",
+        "الصف الثاني الاعدادي": "الثاني الإعدادي",
+        "2 إعدادي": "الثاني الإعدادي",
+        "2 اعدادي": "الثاني الإعدادي",
+        "ثالثة إعدادي": "الثالث الإعدادي",
+        "تالتة اعدادي": "الثالث الإعدادي",
+        "ثالث اعدادي": "الثالث الإعدادي",
+        "الثالث اعدادي": "الثالث الإعدادي",
+        "الصف الثالث الإعدادي": "الثالث الإعدادي",
+        "الصف الثالث الاعدادي": "الثالث الإعدادي",
+        "3 إعدادي": "الثالث الإعدادي",
+        "3 اعدادي": "الثالث الإعدادي",
+        "أولى ثانوي": "الأول الثانوي",
+        "اولى ثانوي": "الأول الثانوي",
+        "اول ثانوي": "الأول الثانوي",
+        "الأول ثانوي": "الأول الثانوي",
+        "الصف الأول الثانوي": "الأول الثانوي",
+        "الصف الاول الثانوي": "الأول الثانوي",
+        "1 ثانوي": "الأول الثانوي",
+        "ثانية ثانوي": "الثاني الثانوي",
+        "تانية ثانوي": "الثاني الثانوي",
+        "ثاني ثانوي": "الثاني الثانوي",
+        "الثاني ثانوي": "الثاني الثانوي",
+        "الصف الثاني الثانوي": "الثاني الثانوي",
+        "الصف الثاني الثانوي": "الثاني الثانوي",
+        "2 ثانوي": "الثاني الثانوي",
+        "ثالثة ثانوي": "الثالث الثانوي",
+        "تالتة ثانوي": "الثالث الثانوي",
+        "ثالث ثانوي": "الثالث الثانوي",
+        "الثالث ثانوي": "الثالث الثانوي",
+        "الصف الثالث الثانوي": "الثالث الثانوي",
+        "الصف الثالث الثانوي": "الثالث الثانوي",
+        "3 ثانوي": "الثالث الثانوي",
+    }
+    return mapping.get(compact, compact)
+
+
 # ==================== النماذج (Models) ====================
 class User(db.Model):
     __tablename__ = "users"
@@ -234,7 +292,6 @@ _db_ready = False
 
 
 def _sync_legacy_user_table(inspector):
-    """ينسخ أي مستخدمين من جدول user القديم إلى users دون حذف أي شيء."""
     if "user" not in inspector.get_table_names() or "users" not in inspector.get_table_names():
         return
     try:
@@ -247,7 +304,11 @@ def _sync_legacy_user_table(inspector):
             role_val = (str(r.get("role") or "student").strip().lower()) if "role" in legacy_cols else "student"
             if role_val not in ("admin", "student"):
                 role_val = "student"
-            pwd_val = (str(r.get("password_hash") or r.get("password") or "").strip()) if ("password_hash" in legacy_cols or "password" in legacy_cols) else ""
+            pwd_val = (
+                str(r.get("password_hash") or r.get("password") or "").strip()
+                if ("password_hash" in legacy_cols or "password" in legacy_cols)
+                else ""
+            )
             if not pwd_val:
                 pwd_val = generate_password_hash("admin123" if role_val == "admin" else "123456")
 
@@ -360,7 +421,6 @@ def init_db():
         db.session.commit()
         _sync_legacy_user_table(inspect(db.engine))
 
-        # تأمين أي صف قديم في users ليس له password_hash أو full_name
         all_u = User.query.all()
         for u in all_u:
             if not u.full_name:
@@ -484,16 +544,18 @@ def format_embed_url(url):
 
 def weeks_for_grade(grade):
     try:
-        if not grade:
-            return WeekPackage.query.filter_by(is_published=True).order_by(WeekPackage.order_num.asc(), WeekPackage.id.asc()).all()
-        return (
-            WeekPackage.query.filter(
-                WeekPackage.is_published.is_(True),
-                WeekPackage.grade.in_([grade, "ALL_GRADES"]),
-            )
+        norm_g = normalize_grade_label(grade)
+        all_pub = (
+            WeekPackage.query.filter_by(is_published=True)
             .order_by(WeekPackage.order_num.asc(), WeekPackage.id.asc())
             .all()
         )
+        if not norm_g:
+            return all_pub
+        return [
+            w for w in all_pub
+            if normalize_grade_label(w.grade) in (norm_g, "ALL_GRADES")
+        ]
     except Exception:
         db.session.rollback()
         return []
@@ -501,9 +563,14 @@ def weeks_for_grade(grade):
 
 def exams_for_grade(grade):
     try:
-        if not grade:
-            return Exam.query.order_by(Exam.id.desc()).all()
-        return Exam.query.filter(Exam.grade.in_([grade, "ALL_GRADES"])).order_by(Exam.id.desc()).all()
+        norm_g = normalize_grade_label(grade)
+        all_ex = Exam.query.order_by(Exam.id.desc()).all()
+        if not norm_g:
+            return all_ex
+        return [
+            ex for ex in all_ex
+            if normalize_grade_label(ex.grade) in (norm_g, "ALL_GRADES")
+        ]
     except Exception:
         db.session.rollback()
         return []
@@ -713,7 +780,7 @@ def auth():
             phone = (request.form.get("phone") or "").strip()
             parent_phone = (request.form.get("parent_phone") or "").strip()
             governorate = (request.form.get("governorate") or "الدقهلية").strip()
-            grade = (request.form.get("grade") or "").strip()
+            grade = normalize_grade_label((request.form.get("grade") or "").strip())
             password = request.form.get("password") or ""
 
             if not full_name or not phone or not grade or not password:
@@ -817,7 +884,8 @@ def student_dashboard():
     tab = request.args.get("tab", "overview")
     week_id_raw = request.args.get("week_id")
 
-    weeks = weeks_for_grade(user.grade)
+    user_norm_grade = normalize_grade_label(user.grade)
+    weeks = weeks_for_grade(user_norm_grade)
     sub_ids = {
         s.week_id for s in WeekSubscription.query.filter_by(user_id=user.id).all()
     }
@@ -838,7 +906,7 @@ def student_dashboard():
 
     if week_id_raw and week_id_raw.isdigit():
         candidate = db.session.get(WeekPackage, int(week_id_raw))
-        if candidate and candidate.is_published and candidate.grade in (user.grade, "ALL_GRADES"):
+        if candidate and candidate.is_published and normalize_grade_label(candidate.grade) in (user_norm_grade, "ALL_GRADES", ""):
             active_week = candidate
             active_week_info = week_access_map.get(
                 candidate.id,
@@ -848,7 +916,7 @@ def student_dashboard():
                 sec = c.section_key if c.section_key in grouped_contents else "explanation"
                 grouped_contents[sec].append(c)
 
-    exams = exams_for_grade(user.grade)
+    exams = exams_for_grade(user_norm_grade)
     results_by_exam = {}
     for r in ExamResult.query.filter_by(user_id=user.id).order_by(ExamResult.id.desc()).all():
         if r.exam_id not in results_by_exam:
@@ -887,7 +955,7 @@ def complete_onboarding():
     user.full_name = (request.form.get("full_name") or user.full_name).strip()
     user.parent_phone = (request.form.get("parent_phone") or "").strip()
     user.governorate = (request.form.get("governorate") or "الدقهلية").strip()
-    grade = (request.form.get("grade") or "").strip()
+    grade = normalize_grade_label((request.form.get("grade") or "").strip())
     if grade:
         user.grade = grade
     user.onboarding_done = True
@@ -1087,7 +1155,7 @@ def admin_dashboard():
         return err_resp
 
     show_login_modal = bool(session.pop("show_login_modal", False))
-    selected_grade = (request.args.get("grade") or "").strip()
+    selected_grade = normalize_grade_label((request.args.get("grade") or "").strip())
 
     try:
         all_users = User.query.order_by(User.id.desc()).all()
@@ -1102,28 +1170,41 @@ def admin_dashboard():
     students_by_grade = {g: [] for g in GRADES}
     for st in all_students:
         lvl = compute_student_level(st)
-        row = {"user": st, "level": lvl}
+        norm_g = normalize_grade_label(st.grade)
+        row = {"user": st, "level": lvl, "grade_label": norm_g or (st.grade or "غير محدد")}
         students_data.append(row)
-        if st.grade in students_by_grade:
-            students_by_grade[st.grade].append(row)
+        if norm_g in students_by_grade:
+            students_by_grade[norm_g].append(row)
 
     try:
         all_weeks = WeekPackage.query.order_by(WeekPackage.order_num.asc(), WeekPackage.id.desc()).all()
     except Exception:
         db.session.rollback()
         all_weeks = []
-    weeks = [w for w in all_weeks if w.grade in (selected_grade, "ALL_GRADES")] if selected_grade else all_weeks
+    weeks = (
+        [w for w in all_weeks if normalize_grade_label(w.grade) in (selected_grade, "ALL_GRADES")]
+        if selected_grade
+        else all_weeks
+    )
 
     try:
         all_exams = Exam.query.order_by(Exam.id.desc()).all()
     except Exception:
         db.session.rollback()
         all_exams = []
-    exams = [ex for ex in all_exams if ex.grade in (selected_grade, "ALL_GRADES")] if selected_grade else all_exams
+    exams = (
+        [ex for ex in all_exams if normalize_grade_label(ex.grade) in (selected_grade, "ALL_GRADES")]
+        if selected_grade
+        else all_exams
+    )
 
     try:
-        codes_query = ActivationCode.query.order_by(ActivationCode.id.desc())
-        codes = codes_query.filter_by(grade=selected_grade).all() if selected_grade else codes_query.all()
+        all_codes = ActivationCode.query.order_by(ActivationCode.id.desc()).all()
+        codes = (
+            [c for c in all_codes if normalize_grade_label(c.grade) == selected_grade]
+            if selected_grade
+            else all_codes
+        )
     except Exception:
         db.session.rollback()
         codes = []
@@ -1229,7 +1310,7 @@ def add_week():
 
     title = (request.form.get("title") or "").strip()
     description = (request.form.get("description") or "").strip()
-    grade = (request.form.get("grade") or "").strip()
+    grade = normalize_grade_label((request.form.get("grade") or "").strip())
     is_free = bool(request.form.get("is_free"))
 
     try:
@@ -1276,7 +1357,7 @@ def add_week():
         flash("تمت إضافة الأسبوع / الباقة بنجاح.", "success")
     except Exception:
         db.session.rollback()
-        flash("حدث خطأ أثناء إضافة الأسبوع/الباقة، يرجى التحقق من البيانات وحجم الملفات.", "danger")
+        flash("تعذر حفظ الأسبوع/الباقة، يرجى التحقق من البيانات أو حجم الملف المرفوع.", "danger")
 
     return redirect(url_for("admin_dashboard", grade="" if grade == "ALL_GRADES" else grade))
 
@@ -1362,7 +1443,7 @@ def add_exam():
         return err_resp
 
     title = (request.form.get("title") or "").strip()
-    grade = (request.form.get("grade") or "").strip()
+    grade = normalize_grade_label((request.form.get("grade") or "").strip())
     grading_mode = (request.form.get("grading_mode") or "instant").strip()
 
     try:
@@ -1473,7 +1554,7 @@ def generate_codes():
     if err_resp:
         return err_resp
 
-    grade = (request.form.get("grade") or "").strip()
+    grade = normalize_grade_label((request.form.get("grade") or "").strip())
     week_id_raw = request.form.get("week_id")
     week_id = int(week_id_raw) if week_id_raw and week_id_raw.isdigit() else None
 
@@ -1504,11 +1585,11 @@ def delete_unused_codes():
     if err_resp:
         return err_resp
 
-    grade = (request.form.get("grade") or "").strip()
-    q = ActivationCode.query.filter_by(is_used=False)
-    if grade:
-        q = q.filter_by(grade=grade)
-    q.delete()
+    grade = normalize_grade_label((request.form.get("grade") or "").strip())
+    unused = ActivationCode.query.filter_by(is_used=False).all()
+    for c in unused:
+        if not grade or normalize_grade_label(c.grade) == grade:
+            db.session.delete(c)
     db.session.commit()
     flash("تم حذف الأكواد غير المستخدمة.", "info")
     return redirect(url_for("admin_dashboard", grade=grade))
