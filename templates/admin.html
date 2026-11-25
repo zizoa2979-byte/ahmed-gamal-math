@@ -113,6 +113,10 @@
       padding: 10px 26px;
       box-shadow: 0 4px 0 #38bdf8;
     }
+    .btn-confirm-ok:hover {
+      background: #38bdf8;
+      color: #0f172a;
+    }
     .copyright-muted {
       color: #9fb3c8;
       font-size: 0.8rem;
@@ -561,7 +565,7 @@
       </form>
     </section>
 
-    <!-- الباقات والأسابيع الحالية (قسم مستقل خارج الإضافة) -->
+    <!-- الباقات والأسابيع الحالية -->
     <section class="math-card mb-4">
       <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-collection me-1"></i> الباقات والأسابيع الحالية</h2>
       <div class="table-responsive">
@@ -609,7 +613,7 @@
       </div>
     </section>
 
-    <!-- توليد وإدارة أكواد التفعيل (كود الباقة وكود الحصة فقط - بدون كود السنتر) -->
+    <!-- توليد وإدارة أكواد التفعيل -->
     <section class="math-card mb-4">
       <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-key-fill me-1"></i> أكواد التفعيل</h2>
       <form method="POST" action="{{ url_for('generate_codes') }}" class="row g-3 mb-4">
@@ -826,6 +830,46 @@
         </div>
       </div>
     </section>
+
+    <!-- وضع التحديث والصيانة (خاص بالمطور) -->
+    {% if is_developer_session %}
+      <section class="math-card mb-4 border-warning border-opacity-50">
+        <h2 class="h5 fw-bold text-warning mb-2">
+          <i class="bi bi-tools me-1"></i> وضع التحديث والصيانة (خاص بالمطور)
+        </h2>
+        <p class="small text-secondary mb-3">
+          الحالة الحالية للمنصة:
+          {% if settings.is_maintenance %}
+            <span class="badge bg-warning text-dark">متوقفة للتحديث حالياً</span>
+          {% else %}
+            <span class="badge bg-success">تعمل بشكل طبيعي</span>
+          {% endif %}
+        </p>
+
+        <form method="POST" action="{{ url_for('toggle_maintenance') }}" class="row g-3">
+          {% if not settings.is_maintenance %}
+            <div class="col-md-8">
+              <label class="form-label small fw-bold">رسالة التحديث للطلاب والزوار (اختياري)</label>
+              <input type="text"
+                     name="maintenance_message"
+                     class="form-control"
+                     value="{{ settings.maintenance_message or 'جاري تنفيذ تحديثات وتطويرات شاملة على المنصة، سنعود للعمل بعد الانتهاء من التطوير.' }}" />
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+              <button type="submit" class="btn btn-warning text-dark fw-bold w-100">
+                <i class="bi bi-pause-circle-fill me-1"></i> إيقاف المنصة للتحديث
+              </button>
+            </div>
+          {% else %}
+            <div class="col-12">
+              <button type="submit" class="btn btn-success fw-bold px-4">
+                <i class="bi bi-play-circle-fill me-1"></i> إنهاء التحديث وإعادة تشغيل المنصة
+              </button>
+            </div>
+          {% endif %}
+        </form>
+      </section>
+    {% endif %}
 
     <!-- إعدادات المنصة وحساب الأدمن -->
     <section class="math-card mb-4">
