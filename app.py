@@ -148,6 +148,7 @@ class User(db.Model):
     role = db.Column(db.String(20), default="student")
     is_active = db.Column(db.Boolean, default=False)
     onboarding_done = db.Column(db.Boolean, default=True)
+    active_session_token = db.Column(db.String(120), nullable=True)
     password_hash = db.Column(db.String(255), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -400,6 +401,7 @@ def init_db():
             ("role", "VARCHAR(20) DEFAULT 'student'"),
             ("is_active", "BOOLEAN DEFAULT TRUE"),
             ("onboarding_done", "BOOLEAN DEFAULT TRUE"),
+            ("active_session_token", "VARCHAR(120)"),
             ("password_hash", "VARCHAR(255)"),
             ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
         ])
@@ -647,7 +649,20 @@ def get_current_user():
     if not uid:
         return None
     try:
-        return db.session.get(User, uid)
+        user = db.session.get(User, uid)
+        if not user:
+            session.clear()
+            return None
+
+        if (user.role or "").lower() != "admin":
+            sess_token = session.get("session_token")
+            if user.active_session_token and sess_token != user.active_session_token:
+                session.pop("user_id", None)
+                session.pop("session_token", None)
+                flash("تم تسجيل الدخول من جهاز آخر، لذلك تم إنهاء الجلسة السابقة على هذا الجهاز.", "warning")
+                return None
+
+        return user
     except Exception:
         db.session.rollback()
         return None
@@ -1012,6 +1027,7 @@ def auth():
                 flash("رقم الهاتف مسجل بالفعل على المنصة، يمكنك تسجيل الدخول.", "warning")
                 return redirect(url_for("auth", mode="login"))
 
+            initial_token = secrets.token_hex(24)
             try:
                 new_student = User(
                     username=phone,
@@ -1023,6 +1039,7 @@ def auth():
                     role="student",
                     is_active=False,
                     onboarding_done=True,
+                    active_session_token=initial_token,
                     password_hash=generate_password_hash(password),
                 )
                 db.session.add(new_student)
@@ -1033,6 +1050,7 @@ def auth():
                 return render_template("auth.html", mode="register")
 
             session["user_id"] = new_student.id
+            session["session_token"] = initial_token
             session["show_login_modal"] = True
             flash("تم إنشاء حسابك بنجاح، وهو الآن قيد مراجعة الإدارة.", "info")
             return redirect(url_for("student_dashboard"))
@@ -1068,7 +1086,13 @@ def auth():
                     return render_template("auth.html", mode="login")
                 session["dev_maintenance_owner"] = True
 
+            new_token = secrets.token_hex(24)
+            if (user.role or "").lower() != "admin":
+                user.active_session_token = new_token
+                db.session.commit()
+
             session["user_id"] = user.id
+            session["session_token"] = new_token
             session["show_login_modal"] = True
             if (user.role or "").lower() == "admin":
                 return redirect(url_for("admin_dashboard"))
@@ -1079,6 +1103,14 @@ def auth():
 
 @app.route("/logout")
 def logout():
+    user = get_current_user()
+    if user and (user.role or "").lower() != "admin":
+        try:
+            user.active_session_token = None
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
     keep_dev = is_developer_session()
     session.clear()
     if keep_dev:
@@ -1278,7 +1310,10 @@ def redeem_code():
         return redirect(url_for("student_dashboard", tab="courses"))
 
     if code_obj.is_used:
-        flash("هذا الكود تم استخدامه مسبقاً.", "warning")
+        if code_obj.used_by == user.id:
+            flash("لقد قمت بتفعيل هذا الكود مسبقاً على حسابك.", "info")
+        else:
+            flash("هذا الكود تم استخدامه مسبقاً ولا يمكن استخدامه مرة أخرى.", "warning")
         return redirect(url_for("student_dashboard", tab="courses"))
 
     code_obj.is_used = True
@@ -1292,7 +1327,7 @@ def redeem_code():
             db.session.add(WeekSubscription(user_id=user.id, week_id=target_week_id))
         db.session.commit()
         type_label = "كود الحصة" if code_type == "lecture" else "كود الباقة"
-        flash(f"تم تفعيل الباقة بنجاح ({type_label})!", "success")
+        flash(f"تم تفعيل الباقة بنجاح ({type_label}) والكود أصبح مستخدماً لمرة واحدة فقط!", "success")
         return redirect(url_for("student_dashboard", week_id=target_week_id))
 
     db.session.commit()
@@ -1820,6 +1855,37 @@ def add_week():
         flash("تعذر حفظ الأسبوع/الباقة، يرجى التحقق من البيانات أو حجم الملف المرفوع.", "danger")
 
     return redirect(url_for("admin_dashboard", grade="" if grade == "ALL_GRADES" else grade))
+
+
+@app.route("/admin/weeks/add-subweek", methods=["POST"])
+def add_subweek():
+    _, err_resp = require_admin()
+    if err_resp:
+        return err_resp
+
+    parent_week_id = (request.form.get("parent_week_id") or "").strip()
+    subweek_title = (request.form.get("subweek_title") or "").strip()
+    notes = (request.form.get("notes") or "").strip()
+
+    week = db.session.get(WeekPackage, int(parent_week_id)) if parent_week_id.isdigit() else None
+    if not week or not subweek_title:
+        flash("يرجى اختيار الباقة وإدخال اسم الأسبوع المراد إضافته داخلها.", "warning")
+        return redirect(url_for("admin_dashboard"))
+
+    db.session.add(
+        CourseContent(
+            week_id=week.id,
+            lecture_title=subweek_title,
+            title=f"محتوى {subweek_title}",
+            section_key="explanation",
+            content_type="file_link",
+            source_path=None,
+            duration_or_notes=notes or f"أسبوع مضاف داخل {week.title}",
+        )
+    )
+    db.session.commit()
+    flash(f"تمت إضافة ({subweek_title}) داخل باقة ({week.title}) بنجاح.", "success")
+    return redirect(url_for("admin_dashboard"))
 
 
 @app.route("/admin/contents/add", methods=["POST"])

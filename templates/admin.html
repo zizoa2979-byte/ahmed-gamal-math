@@ -208,7 +208,7 @@
       </div>
     </div>
 
-    <!-- فلتر الصف الدراسي -->
+    <!-- فلتر الصف الدراسي ونتائج الطلاب المفلترين -->
     <section class="math-card mb-4">
       <form method="GET" action="{{ url_for('admin_dashboard') }}" class="row g-2 align-items-end">
         <div class="col-md-6">
@@ -221,12 +221,67 @@
           </select>
         </div>
         <div class="col-md-6 d-flex gap-2">
-          <button type="submit" class="btn btn-info text-dark fw-bold px-4">تطبيق الفلتر</button>
+          <button type="submit" class="btn btn-info text-dark fw-bold px-4">تطبيق الفلترة</button>
           {% if selected_grade %}
             <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-light px-3">إلغاء الفلتر</a>
           {% endif %}
         </div>
       </form>
+
+      {% if selected_grade %}
+        {% set filtered_students = students_by_grade.get(selected_grade, []) %}
+        <div class="mt-4 pt-3 border-top border-info border-opacity-25">
+          <h3 class="h6 fw-bold text-info mb-3">
+            طلاب الصف المختار ({{ selected_grade }}) — العدد: {{ filtered_students|length }}
+          </h3>
+          {% if filtered_students %}
+            <div class="table-responsive">
+              <table class="table table-dark table-striped table-dark-custom align-middle small">
+                <thead>
+                  <tr>
+                    <th>اسم الطالب</th>
+                    <th>رقم تليفون الطالب</th>
+                    <th>رقم تليفون ولي الأمر</th>
+                    <th>المحافظة</th>
+                    <th>المستوى</th>
+                    <th>حالة الحساب</th>
+                    <th>تحكم</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in filtered_students %}
+                    {% set st = row.user %}
+                    {% set lvl = row.level %}
+                    <tr>
+                      <td class="fw-bold">{{ st.full_name }}</td>
+                      <td>{{ st.phone or '-' }}</td>
+                      <td>{{ st.parent_phone or '-' }}</td>
+                      <td>{{ st.governorate or 'الدقهلية' }}</td>
+                      <td><span class="badge {{ lvl.badge_class }}">{{ lvl.overall }}% - {{ lvl.label }}</span></td>
+                      <td>
+                        {% if st.is_active %}
+                          <span class="badge bg-success">مفعل</span>
+                        {% else %}
+                          <span class="badge bg-warning text-dark">بانتظار الموافقة</span>
+                        {% endif %}
+                      </td>
+                      <td>
+                        <form method="POST" action="{{ url_for('toggle_student', student_id=st.id) }}">
+                          <button type="submit" class="btn btn-sm {{ 'btn-outline-warning' if st.is_active else 'btn-success' }}">
+                            {{ 'إيقاف' if st.is_active else 'تفعيل' }}
+                          </button>
+                        </form>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="text-secondary small">لا يوجد طلاب مسجلون في ({{ selected_grade }}) حالياً.</div>
+          {% endif %}
+        </div>
+      {% endif %}
     </section>
 
     <!-- طلبات الاشتراك عبر فودافون كاش -->
@@ -238,6 +293,7 @@
             <thead>
               <tr>
                 <th>الطالب</th>
+                <th>تليفون الطالب / ولي الأمر</th>
                 <th>الباقة</th>
                 <th>النوع</th>
                 <th>من رقم</th>
@@ -250,9 +306,10 @@
             <tbody>
               {% for sr in subscription_requests %}
                 <tr>
+                  <td class="fw-bold">{{ sr.student.full_name if sr.student else ('طالب #' ~ sr.user_id) }}</td>
                   <td>
-                    <div class="fw-bold">{{ sr.student.full_name if sr.student else ('طالب #' ~ sr.user_id) }}</div>
-                    <div class="text-secondary">{{ sr.student.phone if sr.student else '' }}</div>
+                    <div>{{ sr.student.phone if sr.student else '-' }}</div>
+                    <div class="text-secondary">ولي الأمر: {{ sr.student.parent_phone if sr.student and sr.student.parent_phone else '-' }}</div>
                   </td>
                   <td>{{ sr.week.title if sr.week else 'اشتراك عام' }}</td>
                   <td>{{ 'حصة' if sr.subscription_type == 'lecture' else 'باقة' }}</td>
@@ -294,16 +351,18 @@
       {% endif %}
     </section>
 
-    <!-- الطلاب ومستوى تقدمهم -->
+    <!-- جميع الطلاب وتفاصيلهم -->
     <section class="math-card mb-4">
-      <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-people-fill me-1"></i> حسابات الطلاب ومستوى التقدم</h2>
+      <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-people-fill me-1"></i> سجل الطلاب الكامل</h2>
       {% if students_data %}
         <div class="table-responsive">
           <table class="table table-dark table-striped table-dark-custom align-middle small">
             <thead>
               <tr>
                 <th>الطالب</th>
-                <th>الهاتف</th>
+                <th>تليفون الطالب</th>
+                <th>تليفون ولي الأمر</th>
+                <th>المحافظة</th>
                 <th>الصف</th>
                 <th>المشاهدة والاختبارات</th>
                 <th>المستوى الإجمالي</th>
@@ -318,6 +377,8 @@
                 <tr>
                   <td class="fw-bold">{{ st.full_name }}</td>
                   <td>{{ st.phone or '-' }}</td>
+                  <td>{{ st.parent_phone or '-' }}</td>
+                  <td>{{ st.governorate or 'الدقهلية' }}</td>
                   <td>{{ row.grade_label }}</td>
                   <td>
                     <div>مشاهدة: {{ lvl.watched_count }} / {{ lvl.total_videos }}</div>
@@ -350,10 +411,10 @@
       {% endif %}
     </section>
 
-    <!-- إضافة باقة / أسبوع وإدارة الباقات -->
+    <!-- إضافة باقة / أسبوع -->
     <section class="math-card mb-4">
-      <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-folder-plus me-1"></i> إضافة باقة / أسبوع جديد</h2>
-      <form method="POST" action="{{ url_for('add_week') }}" enctype="multipart/form-data" class="row g-3 mb-4">
+      <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-folder-plus me-1"></i> إضافة باقة / أسبوع</h2>
+      <form method="POST" action="{{ url_for('add_week') }}" enctype="multipart/form-data" class="row g-3">
         <div class="col-md-4">
           <label class="form-label small fw-bold">عنوان الباقة / الأسبوع</label>
           <input type="text" name="title" class="form-control" required />
@@ -396,56 +457,38 @@
           <button type="submit" class="btn btn-primary fw-bold px-4">حفظ الباقة</button>
         </div>
       </form>
-
-      <h3 class="h6 fw-bold text-info mb-2">الباقات والأسابيع الحالية</h3>
-      <div class="table-responsive">
-        <table class="table table-dark table-striped table-dark-custom align-middle small">
-          <thead>
-            <tr>
-              <th>العنوان</th>
-              <th>الصف</th>
-              <th>السعر</th>
-              <th>عدد العناصر</th>
-              <th>الحالة</th>
-              <th>إجراءات</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for w in weeks %}
-              <tr>
-                <td class="fw-bold">{{ w.title }}</td>
-                <td>{{ w.grade }}</td>
-                <td>{{ 'مجانية' if w.is_free or not w.price else (w.price ~ ' جنيه') }}</td>
-                <td>{{ w.contents|length }}</td>
-                <td>
-                  <span class="badge {{ 'bg-success' if w.is_published else 'bg-secondary' }}">
-                    {{ 'منشور' if w.is_published else 'مخفي' }}
-                  </span>
-                </td>
-                <td>
-                  <div class="d-flex gap-1 flex-wrap">
-                    <form method="POST" action="{{ url_for('toggle_week', week_id=w.id) }}">
-                      <button type="submit" class="btn btn-sm btn-outline-info">
-                        {{ 'إخفاء' if w.is_published else 'نشر' }}
-                      </button>
-                    </form>
-                    <form method="POST" action="{{ url_for('delete_week', week_id=w.id) }}" onsubmit="return confirm('تأكيد حذف الباقة؟');">
-                      <button type="submit" class="btn btn-sm btn-danger">حذف</button>
-                    </form>
-                  </div>
-                </td>
-              </tr>
-            {% else %}
-              <tr><td colspan="6" class="text-secondary">لا توجد باقات حالياً.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
     </section>
 
-    <!-- إضافة محتوى داخل باقة -->
+    <!-- إضافة أسبوع داخل باقة -->
     <section class="math-card mb-4">
-      <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-plus-circle me-1"></i> إضافة عنصر داخل باقة</h2>
+      <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-calendar2-plus me-1"></i> إضافة أسبوع داخل باقة</h2>
+      <form method="POST" action="{{ url_for('add_subweek') }}" class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label small fw-bold">اختر الباقة</label>
+          <select name="parent_week_id" class="form-select" required>
+            <option value="">اختر الباقة</option>
+            {% for w in all_weeks %}
+              <option value="{{ w.id }}">{{ w.title }} ({{ w.grade }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small fw-bold">اسم الأسبوع داخل الباقة</label>
+          <input type="text" name="subweek_title" class="form-control" placeholder="مثال: الأسبوع الثاني" required />
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small fw-bold">ملاحظات أو موعد الأسبوع</label>
+          <input type="text" name="notes" class="form-control" placeholder="مثال: بعد أسبوع من بداية الباقة" />
+        </div>
+        <div class="col-12">
+          <button type="submit" class="btn btn-info text-dark fw-bold px-4">إضافة الأسبوع داخل الباقة</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- إضافة محاضرة / عنصر داخل باقة -->
+    <section class="math-card mb-4">
+      <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-easel2-fill me-1"></i> إضافة محاضرة داخل باقة</h2>
       <form method="POST" action="{{ url_for('add_content') }}" enctype="multipart/form-data" class="row g-3">
         <div class="col-md-4">
           <label class="form-label small fw-bold">الباقة</label>
@@ -457,7 +500,7 @@
           </select>
         </div>
         <div class="col-md-4">
-          <label class="form-label small fw-bold">اسم المحاضرة</label>
+          <label class="form-label small fw-bold">اسم المحاضرة أو الأسبوع</label>
           <input type="text" name="lecture_title" class="form-control" value="المحاضرة الأولى" />
         </div>
         <div class="col-md-4">
@@ -513,9 +556,57 @@
           <input type="text" name="duration_or_notes" class="form-control" />
         </div>
         <div class="col-12">
-          <button type="submit" class="btn btn-success fw-bold px-4">إضافة المحتوى</button>
+          <button type="submit" class="btn btn-success fw-bold px-4">إضافة المحاضرة</button>
         </div>
       </form>
+    </section>
+
+    <!-- الباقات والأسابيع الحالية (قسم مستقل خارج الإضافة) -->
+    <section class="math-card mb-4">
+      <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-collection me-1"></i> الباقات والأسابيع الحالية</h2>
+      <div class="table-responsive">
+        <table class="table table-dark table-striped table-dark-custom align-middle small">
+          <thead>
+            <tr>
+              <th>العنوان</th>
+              <th>الصف</th>
+              <th>السعر</th>
+              <th>عدد العناصر / الأسابيع</th>
+              <th>الحالة</th>
+              <th>إجراءات</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for w in weeks %}
+              <tr>
+                <td class="fw-bold">{{ w.title }}</td>
+                <td>{{ w.grade }}</td>
+                <td>{{ 'مجانية' if w.is_free or not w.price else (w.price ~ ' جنيه') }}</td>
+                <td>{{ w.contents|length }}</td>
+                <td>
+                  <span class="badge {{ 'bg-success' if w.is_published else 'bg-secondary' }}">
+                    {{ 'منشور' if w.is_published else 'مخفي' }}
+                  </span>
+                </td>
+                <td>
+                  <div class="d-flex gap-1 flex-wrap">
+                    <form method="POST" action="{{ url_for('toggle_week', week_id=w.id) }}">
+                      <button type="submit" class="btn btn-sm btn-outline-info">
+                        {{ 'إخفاء' if w.is_published else 'نشر' }}
+                      </button>
+                    </form>
+                    <form method="POST" action="{{ url_for('delete_week', week_id=w.id) }}" onsubmit="return confirm('تأكيد حذف الباقة؟');">
+                      <button type="submit" class="btn btn-sm btn-danger">حذف</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            {% else %}
+              <tr><td colspan="6" class="text-secondary">لا توجد باقات حالياً.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </section>
 
     <!-- توليد وإدارة أكواد التفعيل (كود الباقة وكود الحصة فقط - بدون كود السنتر) -->
@@ -736,10 +827,10 @@
       </div>
     </section>
 
-    <!-- إعدادات المنصة ووضع التحديث -->
+    <!-- إعدادات المنصة وحساب الأدمن -->
     <section class="math-card mb-4">
       <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-gear-fill me-1"></i> إعدادات المنصة وحساب الأدمن</h2>
-      <form method="POST" action="{{ url_for('update_settings') }}" enctype="multipart/form-data" class="row g-3 mb-4">
+      <form method="POST" action="{{ url_for('update_settings') }}" enctype="multipart/form-data" class="row g-3">
         <div class="col-md-6">
           <label class="form-label small fw-bold">اسم المنصة</label>
           <input type="text" name="platform_name" class="form-control" value="{{ settings.platform_name or '' }}" />
@@ -780,29 +871,6 @@
           <button type="submit" class="btn btn-success fw-bold px-4">حفظ الإعدادات</button>
         </div>
       </form>
-
-      {% if not settings.is_maintenance or is_developer_session %}
-        <div class="p-3 rounded-3 bg-dark border border-warning border-opacity-50">
-          <div class="fw-bold text-warning mb-2">
-            {{ 'المنصة حالياً في وضع التحديث والصيانة' if settings.is_maintenance else 'وضع التحديث والصيانة' }}
-          </div>
-          <form method="POST" action="{{ url_for('toggle_maintenance') }}" class="row g-2 align-items-center">
-            {% if not settings.is_maintenance %}
-              <div class="col-md-8">
-                <input type="text" name="maintenance_message" class="form-control"
-                       placeholder="رسالة التحديث للطلاب (اختياري)" />
-              </div>
-              <div class="col-md-4">
-                <button type="submit" class="btn btn-warning text-dark fw-bold w-100">تفعيل وضع التحديث</button>
-              </div>
-            {% else %}
-              <div class="col-12">
-                <button type="submit" class="btn btn-success fw-bold px-4">إنهاء التحديث وإعادة تشغيل المنصة</button>
-              </div>
-            {% endif %}
-          </form>
-        </div>
-      {% endif %}
     </section>
 
     <div class="text-center mt-5 mb-5">
