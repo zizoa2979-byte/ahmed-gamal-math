@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>لوحة الإدارة - {{ settings.teacher_name if settings.teacher_name and settings.teacher_name != 'None' else 'مستر / أحمد جمال' }}</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css" rel="stylesheet" />
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
   <style>
     :root {
       --bg-canvas: #06111f;
@@ -51,6 +51,13 @@
       border: 1px solid var(--line-subtle);
       border-radius: 18px;
       padding: 16px;
+      height: 100%;
+    }
+    .grade-pill-card {
+      background: #0a1b30;
+      border: 1px solid rgba(56, 189, 248, 0.2);
+      border-radius: 14px;
+      padding: 12px 14px;
       height: 100%;
     }
     .form-control, .form-select {
@@ -214,6 +221,20 @@
 
     <!-- فلتر الصف الدراسي ونتائج الطلاب المفلترين -->
     <section class="math-card mb-4">
+      <div class="row g-2 mb-3">
+        {% for g in grades %}
+          {% set g_list = students_by_grade.get(g, []) if students_by_grade else [] %}
+          <div class="col-6 col-md-4 col-lg-2">
+            <a href="{{ url_for('admin_dashboard', grade=g) }}" class="text-decoration-none d-block h-100">
+              <div class="grade-pill-card {% if selected_grade == g %}border-info{% endif %}">
+                <div class="small fw-bold text-white text-truncate">{{ g }}</div>
+                <div class="fw-bold text-info mt-1">{{ g_list|length }} طالب</div>
+              </div>
+            </a>
+          </div>
+        {% endfor %}
+      </div>
+
       <form method="GET" action="{{ url_for('admin_dashboard') }}" class="row g-2 align-items-end">
         <div class="col-md-6">
           <label class="form-label small fw-bold text-info">تصفية حسب الصف الدراسي</label>
@@ -321,7 +342,15 @@
                   <td>{{ sr.receiver_phone }}</td>
                   <td>
                     {% if sr.screenshot_path %}
-                      <a href="{{ sr.screenshot_path }}" target="_blank" class="btn btn-sm btn-outline-info">عرض الصورة</a>
+                      <div class="d-flex gap-1 flex-wrap">
+                        <button type="button"
+                                class="btn btn-sm btn-info text-dark fw-bold"
+                                data-img="{{ sr.screenshot_path }}"
+                                onclick="openReceiptPreview(this.dataset.img)">
+                          معاينة
+                        </button>
+                        <a href="{{ sr.screenshot_path }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-info">فتح</a>
+                      </div>
                     {% else %}
                       <span class="text-secondary">لا يوجد</span>
                     {% endif %}
@@ -701,7 +730,7 @@
                   <th>العنوان</th>
                   <th>القسم</th>
                   <th>النوع</th>
-                  <th>حذف</th>
+                  <th>المصدر / الرابط</th>
                 </tr>
               </thead>
               <tbody>
@@ -711,11 +740,7 @@
                     <td class="fw-bold">{{ item.title }}</td>
                     <td>{{ item.section_key }}</td>
                     <td>{{ item.content_type }}</td>
-                    <td>
-                      <form method="POST" action="{{ url_for('delete_content', content_id=item.id) }}" onsubmit="return confirm('حذف هذا العنصر من الباقة؟');">
-                        <button type="submit" class="btn btn-sm btn-danger">حذف</button>
-                      </form>
-                    </td>
+                    <td class="text-break">{{ item.source_path or '-' }}</td>
                   </tr>
                 {% endfor %}
               </tbody>
@@ -1040,11 +1065,33 @@
     </div>
   </main>
 
+  <div class="modal fade" id="receiptPreviewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content bg-dark text-light border-info">
+        <div class="modal-header border-secondary border-opacity-25">
+          <h5 class="modal-title fw-bold text-info">معاينة صورة التحويل</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+        </div>
+        <div class="modal-body text-center">
+          <img id="receiptPreviewImg" src="" alt="صورة التحويل" class="img-fluid rounded-3" style="max-height: 70vh;" />
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
     function closeLoginModal() {
       const m = document.getElementById("loginSuccessModal");
       if (m) { m.remove(); }
+    }
+    function openReceiptPreview(src) {
+      const img = document.getElementById("receiptPreviewImg");
+      if (!img || !src) return;
+      img.src = src;
+      const modalEl = document.getElementById("receiptPreviewModal");
+      const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+      modal.show();
     }
     setTimeout(function () {
       document.querySelectorAll("#flashContainer .alert").forEach(function (el) {
