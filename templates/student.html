@@ -100,6 +100,55 @@
       margin-bottom: 12px;
       border: 1px solid rgba(148, 163, 184, 0.2);
     }
+    .lecture-header-btn {
+      background: linear-gradient(90deg, #0284c7 0%, #0369a1 100%);
+      color: #ffffff;
+      border: 1px solid rgba(125, 211, 252, 0.35);
+      border-radius: 16px !important;
+      padding: 16px 18px;
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      text-align: right;
+      font-weight: 700;
+    }
+    .lecture-sec-banner {
+      background: linear-gradient(90deg, #064e3b 0%, #065f46 100%);
+      border: 1px solid rgba(52, 211, 153, 0.35);
+      color: #ecfdf5;
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-weight: 800;
+      margin-bottom: 10px;
+    }
+    .content-item-row {
+      background: #06111f;
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      border-radius: 12px;
+      padding: 12px 14px;
+    }
+    .locked-item-overlay {
+      background: rgba(239, 68, 68, 0.14);
+      border: 1px solid rgba(248, 113, 113, 0.45);
+      color: #fecaca;
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-weight: 700;
+      font-size: 0.85rem;
+    }
+    .form-control, .form-select {
+      background-color: #06111f;
+      border-color: rgba(148, 163, 184, 0.25);
+      color: #f8fafc;
+      border-radius: 11px;
+    }
+    .form-control:focus, .form-select:focus {
+      background-color: #06111f;
+      color: #f8fafc;
+      border-color: var(--brand-primary);
+      box-shadow: none;
+    }
     .login-confirm-backdrop {
       position: fixed;
       inset: 0;
@@ -167,6 +216,10 @@
       color: #ffffff;
       transform: translateY(-2px);
     }
+    .copyright-muted {
+      color: #9fb3c8;
+      font-size: 0.8rem;
+    }
     .dev-credit-muted {
       color: #9fb3c8;
       font-size: 0.82rem;
@@ -202,7 +255,7 @@
         </span>
         <div>
           <div class="fw-bold text-white small">{{ user.full_name }}</div>
-          <div class="text-white-50" style="font-size: 0.75rem;">{{ user.grade or 'صف دراسي' }} • π • ∑</div>
+          <div class="text-white-50 small">{{ user.grade or 'صف دراسي' }} • π • ∑</div>
         </div>
       </div>
 
@@ -248,22 +301,22 @@
         <form method="POST" action="{{ url_for('complete_onboarding') }}" class="row g-3">
           <div class="col-md-6">
             <label class="form-label small fw-bold">الاسم الثلاثي للطالب</label>
-            <input type="text" name="full_name" class="form-control bg-dark text-white border-secondary"
+            <input type="text" name="full_name" class="form-control"
                    value="{{ user.full_name or '' }}" required />
           </div>
           <div class="col-md-6">
             <label class="form-label small fw-bold">رقم هاتف ولي الأمر</label>
-            <input type="text" name="parent_phone" class="form-control bg-dark text-white border-secondary"
+            <input type="text" name="parent_phone" class="form-control"
                    value="{{ user.parent_phone or '' }}" required />
           </div>
           <div class="col-md-6">
             <label class="form-label small fw-bold">المحافظة</label>
-            <input type="text" name="governorate" class="form-control bg-dark text-white border-secondary"
+            <input type="text" name="governorate" class="form-control"
                    value="{{ user.governorate or 'الدقهلية' }}" required />
           </div>
           <div class="col-md-6">
             <label class="form-label small fw-bold">الصف الدراسي</label>
-            <select name="grade" class="form-select bg-dark text-white border-secondary" required>
+            <select name="grade" class="form-select" required>
               <option value="">اختر الصف الدراسي</option>
               {% for g in grades %}
                 <option value="{{ g }}" {% if user.grade == g %}selected{% endif %}>{{ g }}</option>
@@ -316,7 +369,7 @@
               {% endif %}
             </div>
             <a href="{{ url_for('student_dashboard', tab='courses') }}" class="btn btn-sm btn-outline-light rounded-pill px-3">
-              <i class="bi bi-arrow-right me-1"></i> كل الأسابيع
+              <i class="bi bi-arrow-right me-1"></i> كل الباقات والأسابيع
             </a>
           </div>
 
@@ -324,129 +377,114 @@
             <img src="{{ active_week.image_path }}" alt="{{ active_week.title }}" class="week-cover-img mb-3" />
           {% endif %}
 
-          <ul class="nav nav-pills gap-2 mb-4 border-bottom border-secondary border-opacity-25 pb-3" role="tablist">
-            <li class="nav-item" role="presentation">
-              <button class="nav-link active fw-bold rounded-3" data-bs-toggle="pill" data-bs-target="#tabExplanation" type="button">
-                عن الكورس والشرح
-              </button>
-            </li>
-            <li class="nav-item" role="presentation">
-              <button class="nav-link fw-bold rounded-3" data-bs-toggle="pill" data-bs-target="#tabForum" type="button">
-                المنتدى والتدريبات
-              </button>
-            </li>
-            <li class="nav-item" role="presentation">
-              <button class="nav-link fw-bold rounded-3" data-bs-toggle="pill" data-bs-target="#tabSessions" type="button">
-                الجلسات والاختبارات
-              </button>
-            </li>
-          </ul>
-
           {% if not active_week_info.can_open %}
-            <div class="alert alert-warning rounded-3">
-              {{ active_week_info.lock_reason or 'هذا المحتوى غير متاح حالياً.' }}
+            <div class="alert alert-warning rounded-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <div>{{ active_week_info.lock_reason or 'هذه الباقة تتطلب اشتراكاً.' }}</div>
+              <a href="{{ url_for('student_dashboard', tab='courses', subscribe_week_id=active_week.id) }}#subscribeSection"
+                 class="btn btn-sm btn-success fw-bold rounded-pill px-3">
+                اشتراك في الباقة الآن
+              </a>
             </div>
           {% else %}
-            <div class="tab-content">
-              <div class="tab-pane fade show active" id="tabExplanation">
-                <div class="p-3 rounded-3 bg-dark border border-info border-opacity-25 mb-3 small text-light opacity-75">
-                  <div class="fw-bold text-info mb-1">إرشادات المذاكرة في هذا القسم:</div>
-                  <div>1- شاهد محاضرات الشرح بالترتيب وسجّل إتمام المشاهدة بعد الانتهاء.</div>
-                  <div>2- راجع القوانين والخطوات المسائلية قبل الانتقال للتدريبات.</div>
-                </div>
+            <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-collection-play me-1"></i> المحاضرات داخل الباقة</h2>
 
-                {% if grouped_contents.explanation %}
-                  <div class="d-grid gap-3">
-                    {% for item in grouped_contents.explanation %}
-                      <div class="p-3 rounded-3 bg-dark border border-secondary border-opacity-25">
-                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
-                          <div class="fw-bold text-white">{{ item.title }}</div>
-                          {% if item.id in watched_ids %}
-                            <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i> تمت المشاهدة</span>
+            {% if lecture_groups %}
+              <div class="accordion d-grid gap-3" id="lecturesAccordion">
+                {% for lec in lecture_groups %}
+                  {% set lec_id = 'lectureCollapse_' ~ loop.index %}
+                  {% set is_first = (loop.index == 1) %}
+                  <div class="border-0">
+                    <button class="lecture-header-btn {% if not is_first %}collapsed{% endif %}"
+                            type="button"
+                            data-bs-toggle="collapse"
+                            data-bs-target="#{{ lec_id }}"
+                            aria-expanded="{{ 'true' if is_first else 'false' }}"
+                            aria-controls="{{ lec_id }}">
+                      <span><i class="bi bi-easel2-fill me-2"></i> {{ lec.title }}</span>
+                      <span><i class="bi bi-chevron-down"></i></span>
+                    </button>
+
+                    <div id="{{ lec_id }}" class="collapse {% if is_first %}show{% endif %}">
+                      <div class="p-3 rounded-4 bg-dark border border-info border-opacity-20 mt-2 d-grid gap-3">
+                        {% for sec_key, sec_label in [('explanation', 'الشرح'), ('training', 'التطبيق التفاعلي'), ('homework', 'تسليم الواجب'), ('exam_section', 'الامتحان')] %}
+                          {% set sec_items = lec.sections.get(sec_key, []) %}
+                          {% if sec_items %}
+                            <div>
+                              <div class="lecture-sec-banner d-flex justify-content-between align-items-center">
+                                <span>{{ sec_label }}</span>
+                                <span class="badge bg-dark bg-opacity-40">{{ sec_items|length }}</span>
+                              </div>
+
+                              <div class="d-grid gap-2">
+                                {% for entry in sec_items %}
+                                  {% set item = entry.content %}
+                                  <div class="content-item-row">
+                                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                      <div>
+                                        <div class="fw-bold text-white">{{ item.title }}</div>
+                                        {% if item.duration_or_notes %}
+                                          <div class="small text-secondary">{{ item.duration_or_notes }}</div>
+                                        {% endif %}
+                                      </div>
+                                      {% if item.id in watched_ids %}
+                                        <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i> تمت المشاهدة</span>
+                                      {% endif %}
+                                    </div>
+
+                                    {% if entry.is_locked %}
+                                      <div class="locked-item-overlay mt-2 text-center">
+                                        <i class="bi bi-lock-fill me-1"></i> {{ entry.lock_msg }}
+                                      </div>
+                                    {% else %}
+                                      {% if item.content_type == 'video_upload' and item.source_path %}
+                                        <video src="{{ item.source_path }}" controls class="w-100 rounded-3 mt-2 mb-2" style="max-height: 420px;"></video>
+                                      {% elif item.content_type == 'video_link' and item.source_path %}
+                                        <div class="ratio ratio-16x9 mt-2 mb-2">
+                                          <iframe src="{{ format_embed_url(item.source_path) }}" allowfullscreen class="rounded-3"></iframe>
+                                        </div>
+                                      {% endif %}
+
+                                      <div class="d-flex flex-wrap gap-2 mt-2">
+                                        {% if item.exam_id %}
+                                          <a href="{{ url_for('take_exam', exam_id=item.exam_id) }}" class="btn btn-sm btn-warning text-dark fw-bold">
+                                            <i class="bi bi-pencil-square me-1"></i> بدء الاختبار
+                                          </a>
+                                        {% endif %}
+                                        {% if item.source_path and item.content_type not in ('video_upload', 'video_link') %}
+                                          <a href="{{ item.source_path }}" target="_blank" class="btn btn-sm btn-info text-dark fw-bold">
+                                            <i class="bi bi-file-earmark-arrow-up me-1"></i> فتح الملف / الواجب
+                                          </a>
+                                        {% endif %}
+                                        {% if item.content_type in ('video_upload', 'video_link') %}
+                                          <form method="POST" action="{{ url_for('mark_watched', content_id=item.id) }}">
+                                            <button type="submit" class="btn btn-sm btn-success fw-bold">
+                                              <i class="bi bi-check2-all me-1"></i> تأكيد المشاهدة
+                                            </button>
+                                          </form>
+                                        {% endif %}
+                                      </div>
+                                    {% endif %}
+                                  </div>
+                                {% endfor %}
+                              </div>
+                            </div>
                           {% endif %}
-                        </div>
-                        {% if item.duration_or_notes %}
-                          <div class="small text-secondary mb-2">{{ item.duration_or_notes }}</div>
-                        {% endif %}
-
-                        {% if item.content_type == 'video_upload' and item.source_path %}
-                          <video src="{{ item.source_path }}" controls class="w-100 rounded-3 mb-2" style="max-height: 420px;"></video>
-                        {% elif item.content_type == 'video_link' and item.source_path %}
-                          <div class="ratio ratio-16x9 mb-2">
-                            <iframe src="{{ format_embed_url(item.source_path) }}" allowfullscreen class="rounded-3"></iframe>
-                          </div>
-                        {% elif item.source_path %}
-                          <a href="{{ item.source_path }}" target="_blank" class="btn btn-sm btn-outline-info mb-2">
-                            <i class="bi bi-file-earmark-arrow-down me-1"></i> فتح الملف / المذكرة
-                          </a>
-                        {% endif %}
-
-                        <form method="POST" action="{{ url_for('mark_watched', content_id=item.id) }}">
-                          <button type="submit" class="btn btn-sm btn-success fw-bold">
-                            <i class="bi bi-check2-all me-1"></i> تأكيد إتمام مشاهدة الدرس
-                          </button>
-                        </form>
+                        {% endfor %}
                       </div>
-                    {% endfor %}
+                    </div>
                   </div>
-                {% else %}
-                  <div class="text-secondary small">لا توجد محاضرات شرح مضافة في هذا الأسبوع بعد.</div>
-                {% endif %}
+                {% endfor %}
               </div>
-
-              <div class="tab-pane fade" id="tabForum">
-                {% if grouped_contents.training %}
-                  <div class="d-grid gap-3">
-                    {% for item in grouped_contents.training %}
-                      <div class="p-3 rounded-3 bg-dark border border-secondary border-opacity-25">
-                        <div class="fw-bold text-white mb-1">{{ item.title }}</div>
-                        {% if item.duration_or_notes %}
-                          <div class="small text-secondary mb-2">{{ item.duration_or_notes }}</div>
-                        {% endif %}
-                        {% if item.source_path %}
-                          <a href="{{ item.source_path }}" target="_blank" class="btn btn-sm btn-info text-dark fw-bold">
-                            فتح التدريب / الملف
-                          </a>
-                        {% endif %}
-                      </div>
-                    {% endfor %}
-                  </div>
-                {% else %}
-                  <div class="text-secondary small">لا توجد تدريبات أو ملفات منتدى مضافة في هذا الأسبوع حالياً.</div>
-                {% endif %}
-              </div>
-
-              <div class="tab-pane fade" id="tabSessions">
-                <div class="p-3 rounded-3 bg-dark border border-warning border-opacity-25 mb-3 small text-warning">
-                  تأكد من مراجعة الدرس جيداً قبل بدء أي اختبار إلكتروني لتسجيل أفضل درجة في تقرير مستواك.
-                </div>
-                {% if grouped_contents.exam_section %}
-                  <div class="d-grid gap-3 mb-3">
-                    {% for item in grouped_contents.exam_section %}
-                      <div class="p-3 rounded-3 bg-dark border border-secondary border-opacity-25">
-                        <div class="fw-bold text-white mb-1">{{ item.title }}</div>
-                        {% if item.duration_or_notes %}
-                          <div class="small text-secondary mb-2">{{ item.duration_or_notes }}</div>
-                        {% endif %}
-                        {% if item.source_path %}
-                          <a href="{{ item.source_path }}" target="_blank" class="btn btn-sm btn-outline-info">فتح الجلسة / الرابط</a>
-                        {% endif %}
-                      </div>
-                    {% endfor %}
-                  </div>
-                {% endif %}
-                <a href="{{ url_for('student_dashboard', tab='exams') }}" class="btn btn-primary fw-bold rounded-3">
-                  الانتقال إلى الاختبارات الإلكترونية
-                </a>
-              </div>
-            </div>
+            {% else %}
+              <div class="text-secondary small">لا توجد محاضرات مضافة داخل هذه الباقة بعد.</div>
+            {% endif %}
           {% endif %}
         </section>
 
       {% elif tab == 'courses' %}
         <section class="math-card mb-4">
           <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-            <h1 class="h4 fw-bold mb-0"><i class="bi bi-collection-play-fill text-info me-1"></i> الأسابيع والباقات — {{ user.grade }}</h1>
+            <h1 class="h4 fw-bold mb-0"><i class="bi bi-collection-play-fill text-info me-1"></i> الباقات والأسابيع — {{ user.grade }}</h1>
             <a href="{{ url_for('student_dashboard', tab='overview') }}" class="btn btn-sm btn-outline-light rounded-pill px-3">رجوع للوحة</a>
           </div>
 
@@ -460,37 +498,174 @@
                       <img src="{{ w.image_path }}" alt="{{ w.title }}" class="week-cover-img" />
                     {% endif %}
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                      <span class="badge bg-info bg-opacity-15 text-info">أسبوع #{{ w.order_num }}</span>
+                      <span class="badge bg-info bg-opacity-15 text-info">
+                        {% if w.is_free or not w.price %}
+                          مجانية
+                        {% else %}
+                          {{ w.price }} جنيه
+                        {% endif %}
+                      </span>
                       {% if info.can_open %}
-                        <span class="badge bg-success">متاح</span>
+                        <span class="badge bg-success">مشترك / متاح</span>
                       {% else %}
-                        <span class="badge bg-secondary">مغلق</span>
+                        <span class="badge bg-warning text-dark">يتطلب اشتراك</span>
                       {% endif %}
                     </div>
                     <h2 class="h5 fw-bold text-white mb-2">{{ w.title }}</h2>
-                    <p class="small text-secondary mb-3">{{ w.description or 'شرح منهجي وتدريبات على أفكار الامتحانات.' }}</p>
+                    <p class="small text-secondary mb-3">{{ w.description or 'باقة متكاملة تضم المحاضرات والتدريبات والامتحانات.' }}</p>
                   </div>
 
                   <div>
                     {% if info.can_open %}
                       <a href="{{ url_for('student_dashboard', week_id=w.id) }}" class="btn btn-success fw-bold w-100 rounded-3">
-                        الدخول للكورس / الأسبوع
+                        دخول الباقة
                       </a>
                     {% else %}
-                      <div class="small text-warning mb-2">{{ info.lock_reason or 'يتطلب تفعيل الحساب أو اجتياز المتطلب.' }}</div>
-                      <a href="{{ url_for('student_dashboard', tab='overview') }}" class="btn btn-outline-info w-100 rounded-3">
-                        إدخال كود التفعيل
-                      </a>
+                      <button type="button"
+                              class="btn btn-primary fw-bold w-100 rounded-3"
+                              data-week-id="{{ w.id }}"
+                              onclick="openSubscribeFromBtn(this)">
+                        <i class="bi bi-unlock-fill me-1"></i> اشتراك
+                      </button>
                     {% endif %}
                   </div>
                 </div>
               </div>
             {% else %}
               <div class="col-12">
-                <div class="text-secondary small">لا توجد أسابيع أو باقات منشورة لصفك الدراسي حالياً.</div>
+                <div class="text-secondary small">لا توجد باقات أو أسابيع منشورة لصفك الدراسي حالياً.</div>
               </div>
             {% endfor %}
           </div>
+        </section>
+
+        <section class="math-card mb-4 border-info border-opacity-50" id="subscribeSection">
+          <h2 class="h5 fw-bold text-info mb-2"><i class="bi bi-wallet2 me-1"></i> خيارات الاشتراك والتفعيل</h2>
+          <p class="small text-secondary mb-3">اختر طريقة التفعيل المناسبة لك أو اشترك عبر فودافون كاش وأرسل إثبات التحويل للمراجعة.</p>
+
+          <ul class="nav nav-pills gap-2 mb-4" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active fw-bold rounded-pill px-3" data-bs-toggle="pill" data-bs-target="#paneCodes" type="button">
+                تفعيل بكود (باقة / محاضرة / سنتر)
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link fw-bold rounded-pill px-3" id="tabVodafoneBtn" data-bs-toggle="pill" data-bs-target="#paneVodafone" type="button">
+                <i class="bi bi-phone-fill me-1"></i> الاشتراك باستخدام فودافون كاش
+              </button>
+            </li>
+          </ul>
+
+          <div class="tab-content">
+            <div class="tab-pane fade show active" id="paneCodes">
+              <form method="POST" action="{{ url_for('redeem_code') }}" class="row g-3">
+                <div class="col-md-4">
+                  <label class="form-label small fw-bold">نوع الكود</label>
+                  <select name="code_type" class="form-select">
+                    <option value="package">تفعيل بكود الباقة</option>
+                    <option value="lecture">تفعيل بكود المحاضرة</option>
+                    <option value="center">تفعيل بكود السنتر</option>
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label small fw-bold">الباقة المراد فتحها (اختياري)</label>
+                  <select name="week_id" id="codeWeekSelect" class="form-select">
+                    <option value="">حسب الكود تلقائياً</option>
+                    {% for w in weeks %}
+                      <option value="{{ w.id }}" {% if selected_subscribe_week_id == w.id %}selected{% endif %}>{{ w.title }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label small fw-bold">كود التفعيل</label>
+                  <input type="text" name="code" class="form-control" placeholder="مثال: AHMED-1A2B3C" required />
+                </div>
+                <div class="col-12">
+                  <button type="submit" class="btn btn-success fw-bold px-4 rounded-3">
+                    <i class="bi bi-check2-circle me-1"></i> تفعيل الكود الآن
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <div class="tab-pane fade" id="paneVodafone">
+              <div class="p-3 rounded-3 bg-dark border border-danger border-opacity-50 mb-3">
+                <div class="small text-secondary mb-1">رقم التحويل فودافون كاش الرسمي:</div>
+                <div class="fs-5 fw-bold text-danger">
+                  <i class="bi bi-phone-vibrate me-1"></i> {{ settings.vodafone_cash_number or settings.whatsapp_number or '01000000000' }}
+                </div>
+                <div class="small text-light opacity-75 mt-1">
+                  حوّل المبلغ المطلوب ثم املأ البيانات التالية وارفق سكرين شوت التحويل من جهازك.
+                </div>
+              </div>
+
+              <form method="POST" action="{{ url_for('subscribe_vodafone') }}" enctype="multipart/form-data" class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label small fw-bold">الباقة المطلوبة</label>
+                  <select name="week_id" id="vfWeekSelect" class="form-select">
+                    <option value="">اشتراك عام / حساب</option>
+                    {% for w in weeks %}
+                      <option value="{{ w.id }}" {% if selected_subscribe_week_id == w.id %}selected{% endif %}>
+                        {{ w.title }} ({{ w.price or 0 }} جنيه)
+                      </option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small fw-bold">نوع الاشتراك</label>
+                  <select name="subscription_type" class="form-select">
+                    <option value="package">اشتراك باقة / شهر</option>
+                    <option value="lecture">اشتراك محاضرة</option>
+                    <option value="center">اشتراك سنتر / مجموعة</option>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small fw-bold">الرقم المحوّل منه</label>
+                  <input type="text" name="sender_phone" class="form-control" placeholder="مثال: 010xxxxxxxx" required />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small fw-bold">الرقم المحوّل إليه</label>
+                  <input type="text" name="receiver_phone" class="form-control"
+                         value="{{ settings.vodafone_cash_number or settings.whatsapp_number or '01000000000' }}" required />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small fw-bold">صورة سكرين شوت التحويل (من جهازك)</label>
+                  <input type="file" name="screenshot" accept="image/*" class="form-control" required />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small fw-bold">ملاحظات إضافية (اختياري)</label>
+                  <input type="text" name="notes" class="form-control" placeholder="الاسم أو وقت التحويل..." />
+                </div>
+                <div class="col-12">
+                  <button type="submit" class="btn btn-danger fw-bold px-4 rounded-3">
+                    <i class="bi bi-send-fill me-1"></i> إرسال طلب الاشتراك
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          {% if my_requests %}
+            <div class="mt-4 pt-3 border-top border-secondary border-opacity-25">
+              <div class="small fw-bold text-info mb-2">طلبات الاشتراك المرسلة منك:</div>
+              <div class="d-grid gap-2">
+                {% for sr in my_requests[:5] %}
+                  <div class="p-2 rounded-3 bg-dark border border-secondary border-opacity-25 small d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div>
+                      <strong>{{ sr.week.title if sr.week else 'اشتراك' }}</strong> — من: <span class="text-info">{{ sr.sender_phone }}</span> إلى: <span class="text-info">{{ sr.receiver_phone }}</span>
+                    </div>
+                    {% if sr.status == 'approved' %}
+                      <span class="badge bg-success">مقبول ومفعل</span>
+                    {% elif sr.status == 'rejected' %}
+                      <span class="badge bg-danger">مرفوض</span>
+                    {% else %}
+                      <span class="badge bg-warning text-dark">قيد المراجعة</span>
+                    {% endif %}
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+          {% endif %}
         </section>
 
       {% elif tab == 'exams' %}
@@ -542,8 +717,8 @@
             <div class="stat-tile stat-active d-flex justify-content-between align-items-center">
               <div>
                 <div class="fs-2 fw-bold text-info">{{ subscribed_weeks|length }}</div>
-                <div class="fw-bold">أسابيع / باقات متاحة</div>
-                <div class="small text-secondary">الأسابيع المفتوحة لحسابك الآن</div>
+                <div class="fw-bold">باقات / أسابيع متاحة</div>
+                <div class="small text-secondary">الباقات المفتوحة لحسابك الآن</div>
               </div>
               <i class="bi bi-lightbulb-fill fs-1 text-info"></i>
             </div>
@@ -578,11 +753,11 @@
           <div class="col-lg-7">
             <div class="math-card h-100 d-flex flex-column justify-content-between">
               <div>
-                <h2 class="h5 fw-bold text-info mb-2"><i class="bi bi-key-fill me-1"></i> تفعيل كود أسبوع أو باقة إضافية</h2>
-                <p class="small text-secondary mb-3">إذا كان معك كود تفعيل خاص بباقة أو أسبوع دراسي أدخله هنا لتفعيله فوراً.</p>
+                <h2 class="h5 fw-bold text-info mb-2"><i class="bi bi-key-fill me-1"></i> تفعيل كود أو اشتراك</h2>
+                <p class="small text-secondary mb-3">أدخل كود التفعيل هنا أو انتقل إلى الباقات للاشتراك بالكود أو فودافون كاش.</p>
                 <form method="POST" action="{{ url_for('redeem_code') }}" class="row g-2">
                   <div class="col-sm-8">
-                    <input type="text" name="code" class="form-control bg-dark text-white border-secondary"
+                    <input type="text" name="code" class="form-control"
                            placeholder="أدخل كود التفعيل مثل AHMED-XXXX" required />
                   </div>
                   <div class="col-sm-4">
@@ -605,7 +780,7 @@
 
         <section class="math-card mb-4">
           <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-            <h2 class="h5 fw-bold text-info mb-0"><i class="bi bi-journal-bookmark-fill me-1"></i> الأسابيع والباقات المتاحة لصفك</h2>
+            <h2 class="h5 fw-bold text-info mb-0"><i class="bi bi-journal-bookmark-fill me-1"></i> الباقات والأسابيع المتاحة لصفك</h2>
             <a href="{{ url_for('student_dashboard', tab='courses') }}" class="btn btn-sm btn-outline-info rounded-pill px-3">عرض الكل</a>
           </div>
 
@@ -627,7 +802,10 @@
                       الدخول للكورس
                     </a>
                   {% else %}
-                    <div class="small text-warning">{{ info.lock_reason or 'مغلق حالياً' }}</div>
+                    <a href="{{ url_for('student_dashboard', tab='courses', subscribe_week_id=w.id) }}#subscribeSection"
+                       class="btn btn-sm btn-primary fw-bold rounded-3">
+                      اشتراك
+                    </a>
                   {% endif %}
                 </div>
               </div>
@@ -640,7 +818,7 @@
     {% endif %}
 
     <div class="text-center mt-5 mb-5">
-      <div class="mb-1" style="color:#9fb3c8;font-size:0.8rem;">جميع الحقوق محفوظة © 2026</div>
+      <div class="mb-1 copyright-muted">جميع الحقوق محفوظة © 2026</div>
       <div class="dev-credit-muted">
         <i class="bi bi-code-slash"></i>
         <span>{{ developer_credit }}</span>
@@ -661,6 +839,16 @@
     function closeLoginModal() {
       const m = document.getElementById("loginSuccessModal");
       if (m) { m.remove(); }
+    }
+
+    function openSubscribeFromBtn(btn) {
+      const weekId = btn.getAttribute("data-week-id") || "";
+      const codeSel = document.getElementById("codeWeekSelect");
+      const vfSel = document.getElementById("vfWeekSelect");
+      if (codeSel) { codeSel.value = weekId; }
+      if (vfSel) { vfSel.value = weekId; }
+      const sec = document.getElementById("subscribeSection");
+      if (sec) { sec.scrollIntoView({ behavior: "smooth" }); }
     }
 
     setTimeout(function () {

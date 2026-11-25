@@ -215,6 +215,79 @@
       </section>
     {% endif %}
 
+    <section class="math-card mb-4 border-success border-opacity-50" id="subscriptionsSection">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+          <h2 class="h5 fw-bold text-success mb-1"><i class="bi bi-receipt-cutoff me-1"></i> الاشتراكات / قبول الاشتراكات</h2>
+          <div class="small text-secondary">راجع بيانات التحويل وصورة السكرين شوت المرفوعة من الطالب ثم اضغط قبول أو رفض</div>
+        </div>
+        <span class="badge bg-success fs-6">{{ pending_subscriptions|length }} طلب معلق</span>
+      </div>
+
+      {% if subscription_requests %}
+        <div class="table-responsive">
+          <table class="table table-dark table-bordered table-hover align-middle small mb-0">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>الطالب</th>
+                <th>الباقة / النوع</th>
+                <th>الرقم المحوّل منه</th>
+                <th>الرقم المحوّل إليه</th>
+                <th>سكرين شوت التحويل</th>
+                <th>الحالة</th>
+                <th>قبول / رفض</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for sr in subscription_requests %}
+                <tr>
+                  <td>{{ loop.index }}</td>
+                  <td class="fw-bold text-white">{{ sr.student.full_name if sr.student else ('طالب #' ~ sr.user_id) }}</td>
+                  <td>
+                    <div>{{ sr.week.title if sr.week else 'اشتراك عام' }}</div>
+                    <span class="badge bg-info text-dark">{{ sr.subscription_type }}</span>
+                  </td>
+                  <td class="fw-bold text-info">{{ sr.sender_phone }}</td>
+                  <td class="fw-bold text-warning">{{ sr.receiver_phone }}</td>
+                  <td>
+                    {% if sr.screenshot_path %}
+                      <a href="{{ sr.screenshot_path }}" target="_blank" class="btn btn-sm btn-outline-info">
+                        <i class="bi bi-image me-1"></i> عرض السكرين شوت
+                      </a>
+                    {% else %}
+                      <span class="text-secondary">لا يوجد</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if sr.status == 'approved' %}
+                      <span class="badge bg-success">مقبول</span>
+                    {% elif sr.status == 'rejected' %}
+                      <span class="badge bg-danger">مرفوض</span>
+                    {% else %}
+                      <span class="badge bg-warning text-dark">قيد المراجعة</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <div class="d-flex gap-1">
+                      <form method="POST" action="{{ url_for('handle_subscription_request', req_id=sr.id, action='approve') }}">
+                        <button type="submit" class="btn btn-sm btn-success fw-bold">قبول</button>
+                      </form>
+                      <form method="POST" action="{{ url_for('handle_subscription_request', req_id=sr.id, action='reject') }}">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">رفض</button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="text-secondary small">لا توجد طلبات اشتراك واردة حالياً.</div>
+      {% endif %}
+    </section>
+
     {% if pending_students %}
       <div class="alert alert-warning border-warning d-flex justify-content-between align-items-center flex-wrap gap-2 rounded-4 p-3 mb-4 shadow">
         <div>
@@ -409,15 +482,19 @@
           <label class="form-label">نبذة تعريفية</label>
           <textarea name="teacher_bio" rows="2" class="form-control">{{ settings.teacher_bio }}</textarea>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
+          <label class="form-label">رقم فودافون كاش للتحويل</label>
+          <input type="text" name="vodafone_cash_number" class="form-control" value="{{ settings.vodafone_cash_number or settings.whatsapp_number or '01000000000' }}" />
+        </div>
+        <div class="col-md-3">
           <label class="form-label">رقم واتساب</label>
           <input type="text" name="whatsapp_number" class="form-control" value="{{ settings.whatsapp_number }}" />
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
           <label class="form-label">نسبة النجاح المطلوبة (%)</label>
           <input type="number" step="0.5" min="0" max="100" name="pass_percentage_required" class="form-control" value="{{ settings.pass_percentage_required }}" />
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
           <label class="form-label">صورة المدرس</label>
           <input type="file" name="teacher_image" accept="image/*" class="form-control" />
         </div>
@@ -456,7 +533,7 @@
         <div class="math-card h-100">
           <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-folder-plus me-1"></i> إضافة أسبوع / باقة جديدة</h2>
           <form method="POST" action="{{ url_for('add_week') }}" enctype="multipart/form-data" class="d-grid gap-2">
-            <input type="text" name="title" class="form-control" placeholder="عنوان الأسبوع أو الباقة (مثال: باقة كتالوج المنصة)" required />
+            <input type="text" name="title" class="form-control" placeholder="عنوان الباقة أو الشهر (مثال: باقة الشهر الأول)" required />
             <textarea name="description" rows="2" class="form-control" placeholder="وصف مختصر"></textarea>
             <select name="grade" class="form-select" required>
               <option value="">اختر الصف الدراسي</option>
@@ -470,7 +547,7 @@
                 <input type="number" name="order_num" class="form-control" value="1" min="1" placeholder="الترتيب" />
               </div>
               <div class="col-6">
-                <input type="number" name="price" class="form-control" value="0" min="0" placeholder="السعر" />
+                <input type="number" step="0.5" name="price" class="form-control" value="0" min="0" placeholder="السعر بالجنيه (مثال: 50)" />
               </div>
             </div>
             <label class="form-label small mb-0">صورة الباقة / الأسبوع (اختياري)</label>
@@ -488,15 +565,16 @@
 
       <div class="col-lg-6">
         <div class="math-card h-100">
-          <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-file-earmark-plus me-1"></i> إضافة محتوى داخل أسبوع</h2>
+          <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-file-earmark-plus me-1"></i> إضافة محاضرة وعنصر داخل الباقة</h2>
           <form method="POST" action="{{ url_for('add_content') }}" enctype="multipart/form-data" class="d-grid gap-2">
             <select name="week_id" class="form-select" required>
-              <option value="">اختر الأسبوع / الباقة</option>
+              <option value="">اختر الباقة / الشهر</option>
               {% for w in all_weeks %}
                 <option value="{{ w.id }}">{{ w.title }} ({{ w.grade }})</option>
               {% endfor %}
             </select>
-            <input type="text" name="title" class="form-control" placeholder="عنوان الدرس أو الملف" required />
+            <input type="text" name="lecture_title" class="form-control" value="المحاضرة الأولى" placeholder="اسم المحاضرة (مثال: المحاضرة الأولى)" required />
+            <input type="text" name="title" class="form-control" placeholder="عنوان العنصر (شرح / تدريب / واجب / امتحان)" required />
             <div class="row g-2">
               <div class="col-6">
                 <select name="section_key" class="form-select">
@@ -509,15 +587,34 @@
                 <select name="content_type" class="form-select">
                   <option value="video_link">رابط فيديو (يوتيوب / درايف)</option>
                   <option value="video_upload">رفع ملف فيديو</option>
-                  <option value="file_link">رابط ملف / مذكرة</option>
+                  <option value="file_link">رابط ملف / مذكرة / واجب</option>
                   <option value="file_upload">رفع ملف PDF / مذكرة</option>
+                  <option value="exam_link">اختبار إلكتروني داخل المحاضرة</option>
+                </select>
+              </div>
+            </div>
+            <div class="row g-2">
+              <div class="col-6">
+                <select name="exam_id" class="form-select">
+                  <option value="">ربط اختبار (اختياري)</option>
+                  {% for ex in all_exams %}
+                    <option value="{{ ex.id }}">{{ ex.title }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-6">
+                <select name="required_exam_id" class="form-select">
+                  <option value="">قفل حتى اجتياز اختبار سابق؟ (لا)</option>
+                  {% for ex in all_exams %}
+                    <option value="{{ ex.id }}">يتطلب نجاح: {{ ex.title }}</option>
+                  {% endfor %}
                 </select>
               </div>
             </div>
             <input type="text" name="external_link" class="form-control" placeholder="الرابط الخارجي (إن وُجد)" />
             <input type="file" name="media_file" class="form-control" />
             <input type="text" name="duration_or_notes" class="form-control" placeholder="مدة الفيديو أو ملاحظات" />
-            <button type="submit" class="btn btn-primary fw-bold mt-1">إضافة المحتوى</button>
+            <button type="submit" class="btn btn-primary fw-bold mt-1">إضافة العنصر داخل المحاضرة</button>
           </form>
         </div>
       </div>
@@ -537,7 +634,11 @@
               <div>
                 <div class="fw-bold">
                   {{ w.title }} <span class="badge bg-secondary">{{ w.grade }}</span>
-                  {% if w.is_free %}<span class="badge bg-success">مجانية / مفتوحة</span>{% endif %}
+                  {% if w.is_free or (w.price or 0) <= 0 %}
+                    <span class="badge bg-success">مجانية / مفتوحة</span>
+                  {% else %}
+                    <span class="badge bg-info text-dark">{{ w.price }} جنيه</span>
+                  {% endif %}
                 </div>
                 <div class="small text-secondary">عدد المحتويات: {{ w.contents|length }} • الترتيب: {{ w.order_num }}</div>
               </div>
@@ -670,7 +771,7 @@
     <div class="math-card mb-4">
       <h2 class="h5 fw-bold text-info mb-3"><i class="bi bi-key-fill me-1"></i> أكواد التفعيل</h2>
       <form method="POST" action="{{ url_for('generate_codes') }}" class="row g-2 mb-3">
-        <div class="col-md-4">
+        <div class="col-md-3">
           <select name="grade" class="form-select" required>
             <option value="">اختر الصف الدراسي</option>
             {% for g in grades %}
@@ -678,15 +779,22 @@
             {% endfor %}
           </select>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
+          <select name="code_type" class="form-select">
+            <option value="package">كود باقة</option>
+            <option value="lecture">كود محاضرة</option>
+            <option value="center">كود سنتر</option>
+          </select>
+        </div>
+        <div class="col-md-3">
           <select name="week_id" class="form-select">
-            <option value="">تفعيل الحساب بالكامل</option>
+            <option value="">ربط بباقة محددة</option>
             {% for w in all_weeks %}
               <option value="{{ w.id }}">{{ w.title }} ({{ w.grade }})</option>
             {% endfor %}
           </select>
         </div>
-        <div class="col-md-2">
+        <div class="col-md-1">
           <input type="number" name="count" class="form-control" value="10" min="1" max="100" />
         </div>
         <div class="col-md-2">
@@ -704,6 +812,7 @@
           <thead>
             <tr>
               <th>الكود</th>
+              <th>النوع</th>
               <th>الصف</th>
               <th>الحالة</th>
               <th>حذف</th>
@@ -713,6 +822,7 @@
             {% for c in codes %}
               <tr>
                 <td class="fw-bold text-info">{{ c.code }}</td>
+                <td>{{ c.code_type or 'package' }}</td>
                 <td>{{ c.grade }}</td>
                 <td>
                   {% if c.is_used %}
@@ -729,7 +839,7 @@
               </tr>
             {% else %}
               <tr>
-                <td colspan="4" class="text-center text-secondary">لا توجد أكواد مولدة بعد.</td>
+                <td colspan="5" class="text-center text-secondary">لا توجد أكواد مولدة بعد.</td>
               </tr>
             {% endfor %}
           </tbody>

@@ -66,9 +66,10 @@ GRADES = [
 ]
 
 CONTENT_SECTIONS = [
-    ("explanation", "عن الكورس والشرح"),
-    ("training", "المنتدى والتدريبات"),
-    ("exam_section", "الجلسات والاختبارات"),
+    ("explanation", "الشرح"),
+    ("training", "التطبيق التفاعلي"),
+    ("homework", "تسليم الواجب"),
+    ("exam_section", "الامتحان"),
 ]
 
 DEVELOPER_CREDIT = "تم التطوير بواسطة م/ عبد العزيز أمير"
@@ -163,6 +164,7 @@ class PlatformSettings(db.Model):
     )
     teacher_image = db.Column(db.String(300), nullable=True)
     whatsapp_number = db.Column(db.String(50), default="201000000000")
+    vodafone_cash_number = db.Column(db.String(50), default="01000000000")
     facebook_url = db.Column(db.String(300), nullable=True)
     instagram_url = db.Column(db.String(300), nullable=True)
     tiktok_url = db.Column(db.String(300), nullable=True)
@@ -211,10 +213,13 @@ class CourseContent(db.Model):
     __tablename__ = "course_contents"
     id = db.Column(db.Integer, primary_key=True)
     week_id = db.Column(db.Integer, db.ForeignKey("week_packages.id"), nullable=False)
+    lecture_title = db.Column(db.String(200), default="المحاضرة الأولى")
     title = db.Column(db.String(200), nullable=False)
     section_key = db.Column(db.String(50), default="explanation")
     content_type = db.Column(db.String(50), default="video_link")
     source_path = db.Column(db.String(400), nullable=True)
+    exam_id = db.Column(db.Integer, db.ForeignKey("exams.id"), nullable=True)
+    required_exam_id = db.Column(db.Integer, nullable=True)
     duration_or_notes = db.Column(db.String(300), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -235,10 +240,29 @@ class WeekSubscription(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class SubscriptionRequest(db.Model):
+    __tablename__ = "subscription_requests"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    week_id = db.Column(db.Integer, db.ForeignKey("week_packages.id"), nullable=True)
+    subscription_type = db.Column(db.String(60), default="package")
+    payment_method = db.Column(db.String(60), default="vodafone_cash")
+    sender_phone = db.Column(db.String(50), nullable=False)
+    receiver_phone = db.Column(db.String(50), nullable=False)
+    screenshot_path = db.Column(db.String(400), nullable=True)
+    notes = db.Column(db.String(250), nullable=True)
+    status = db.Column(db.String(25), default="pending")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    student = db.relationship("User", foreign_keys=[user_id], lazy=True)
+    week = db.relationship("WeekPackage", foreign_keys=[week_id], lazy=True)
+
+
 class ActivationCode(db.Model):
     __tablename__ = "activation_codes"
     id = db.Column(db.Integer, primary_key=True)
     code = db.Column(db.String(60), unique=True, nullable=False)
+    code_type = db.Column(db.String(30), default="package")
     grade = db.Column(db.String(80), nullable=False)
     week_id = db.Column(db.Integer, db.ForeignKey("week_packages.id"), nullable=True)
     is_used = db.Column(db.Boolean, default=False)
@@ -385,6 +409,7 @@ def init_db():
             ("teacher_bio", "TEXT"),
             ("teacher_image", "VARCHAR(300)"),
             ("whatsapp_number", "VARCHAR(50) DEFAULT '201000000000'"),
+            ("vodafone_cash_number", "VARCHAR(50) DEFAULT '01000000000'"),
             ("facebook_url", "VARCHAR(300)"),
             ("instagram_url", "VARCHAR(300)"),
             ("tiktok_url", "VARCHAR(300)"),
@@ -406,9 +431,12 @@ def init_db():
         ])
 
         ensure_columns("course_contents", [
+            ("lecture_title", "VARCHAR(200) DEFAULT 'المحاضرة الأولى'"),
             ("section_key", "VARCHAR(50) DEFAULT 'explanation'"),
             ("content_type", "VARCHAR(50) DEFAULT 'video_link'"),
             ("source_path", "VARCHAR(400)"),
+            ("exam_id", "INTEGER"),
+            ("required_exam_id", "INTEGER"),
             ("duration_or_notes", "VARCHAR(300)"),
             ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
         ])
@@ -422,10 +450,24 @@ def init_db():
         ])
 
         ensure_columns("activation_codes", [
+            ("code_type", "VARCHAR(30) DEFAULT 'package'"),
             ("grade", "VARCHAR(80)"),
             ("week_id", "INTEGER"),
             ("is_used", "BOOLEAN DEFAULT FALSE"),
             ("used_by", "INTEGER"),
+            ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+        ])
+
+        ensure_columns("subscription_requests", [
+            ("user_id", "INTEGER"),
+            ("week_id", "INTEGER"),
+            ("subscription_type", "VARCHAR(60) DEFAULT 'package'"),
+            ("payment_method", "VARCHAR(60) DEFAULT 'vodafone_cash'"),
+            ("sender_phone", "VARCHAR(50)"),
+            ("receiver_phone", "VARCHAR(50)"),
+            ("screenshot_path", "VARCHAR(400)"),
+            ("notes", "VARCHAR(250)"),
+            ("status", "VARCHAR(25) DEFAULT 'pending'"),
             ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
         ])
 
@@ -475,7 +517,6 @@ def is_developer_session():
 def ensure_initialized_and_maintenance_guard():
     init_db()
 
-    # السماح بالملفات الثابتة والمرفوعات ورابط استرجاع جلسة المطور فقط
     allowed_always_prefixes = ("/static", "/uploads", "/admin/dev-access/")
     if request.path.startswith(allowed_always_prefixes):
         return None
@@ -487,11 +528,9 @@ def ensure_initialized_and_maintenance_guard():
         s = None
 
     if s and bool(getattr(s, "is_maintenance", False)):
-        # السماح فقط لجلسة المطور الخاصة بك
         if is_developer_session():
             return None
 
-        # السماح بمسار /auth حتى تتمكن أنت من تسجيل الدخول كأدمن وتفعيل جلسة المطور من هناك
         if request.path.startswith("/auth"):
             return None
 
@@ -870,6 +909,43 @@ def evaluate_attempt(exam, attempt):
     }
 
 
+def _build_lecture_groups(week, user_id, pass_pct_required):
+    passed_exam_ids = set()
+    try:
+        for r in ExamResult.query.filter_by(user_id=user_id).all():
+            if float(r.percentage or 0.0) >= float(pass_pct_required or 50.0):
+                passed_exam_ids.add(r.exam_id)
+    except Exception:
+        db.session.rollback()
+
+    items = sorted(getattr(week, "contents", []) or [], key=lambda x: x.id)
+    lectures_order = []
+    lectures_map = {}
+
+    for c in items:
+        lec_name = (c.lecture_title or "المحاضرة الأولى").strip() or "المحاضرة الأولى"
+        if lec_name not in lectures_map:
+            lectures_order.append(lec_name)
+            lectures_map[lec_name] = {
+                "title": lec_name,
+                "sections": {
+                    "explanation": [],
+                    "training": [],
+                    "homework": [],
+                    "exam_section": [],
+                },
+            }
+        sec = c.section_key if c.section_key in lectures_map[lec_name]["sections"] else "explanation"
+        is_locked = bool(c.required_exam_id and c.required_exam_id not in passed_exam_ids)
+        lectures_map[lec_name]["sections"][sec].append({
+            "content": c,
+            "is_locked": is_locked,
+            "lock_msg": "هذا المحتوى مغلق حتى النجاح في الاختبار السابق!",
+        })
+
+    return [lectures_map[name] for name in lectures_order]
+
+
 @app.context_processor
 def inject_globals():
     return {
@@ -979,7 +1055,6 @@ def auth():
                 flash("بيانات الدخول غير صحيحة، تأكد من رقم الهاتف أو اسم المستخدم وكلمة السر.", "danger")
                 return render_template("auth.html", mode="login")
 
-            # لو المنصة في وضع التحديث، اسمح فقط لحساب المطور المحدد بالدخول عبر /auth
             s = get_settings()
             dev_username = os.environ.get("DEVELOPER_USERNAME", "").strip()
             if bool(getattr(s, "is_maintenance", False)) and not is_developer_session():
@@ -1053,6 +1128,7 @@ def student_dashboard():
 
     tab = request.args.get("tab", "overview")
     week_id_raw = request.args.get("week_id")
+    selected_subscribe_week_id = int(request.args.get("subscribe_week_id")) if (request.args.get("subscribe_week_id") or "").isdigit() else None
 
     try:
         user_norm_grade = normalize_grade_label(user.grade)
@@ -1075,12 +1151,13 @@ def student_dashboard():
     week_access_map = {}
     for w in weeks:
         can_open = bool(getattr(w, "is_free", False) or (w.id in sub_ids))
-        lock_reason = "" if can_open else "هذا الأسبوع أو الباقة تتطلب كود تفعيل أو اشتراكاً."
+        lock_reason = "" if can_open else "هذه الباقة تحتاج اشتراكاً أو كود تفعيل أو تحويل فودافون كاش."
         week_access_map[w.id] = {"can_open": can_open, "lock_reason": lock_reason}
 
     active_week = None
     active_week_info = None
-    grouped_contents = {"explanation": [], "training": [], "exam_section": []}
+    lecture_groups = []
+    grouped_contents = {"explanation": [], "training": [], "homework": [], "exam_section": []}
 
     try:
         watched_ids = {
@@ -1090,6 +1167,7 @@ def student_dashboard():
         db.session.rollback()
         watched_ids = set()
 
+    s_cfg = get_settings()
     if week_id_raw and week_id_raw.isdigit():
         try:
             candidate = db.session.get(WeekPackage, int(week_id_raw))
@@ -1098,6 +1176,9 @@ def student_dashboard():
                 active_week_info = week_access_map.get(
                     candidate.id,
                     {"can_open": bool(getattr(candidate, "is_free", False) or candidate.id in sub_ids), "lock_reason": "مغلق"},
+                )
+                lecture_groups = _build_lecture_groups(
+                    candidate, user.id, getattr(s_cfg, "pass_percentage_required", 50.0)
                 )
                 for c in sorted(getattr(candidate, "contents", []) or [], key=lambda x: x.id):
                     sec = c.section_key if c.section_key in grouped_contents else "explanation"
@@ -1121,6 +1202,17 @@ def student_dashboard():
         db.session.rollback()
         results_by_exam = {}
 
+    my_requests = []
+    try:
+        my_requests = (
+            SubscriptionRequest.query.filter_by(user_id=user.id)
+            .order_by(SubscriptionRequest.id.desc())
+            .all()
+        )
+    except Exception:
+        db.session.rollback()
+        my_requests = []
+
     level_info = compute_student_level(user)
 
     return render_template(
@@ -1135,11 +1227,14 @@ def student_dashboard():
         week_access_map=week_access_map,
         active_week=active_week,
         active_week_info=active_week_info,
+        lecture_groups=lecture_groups,
         grouped_contents=grouped_contents,
         watched_ids=watched_ids,
         format_embed_url=format_embed_url,
         exams=exams,
         results_by_exam=results_by_exam,
+        my_requests=my_requests,
+        selected_subscribe_week_id=selected_subscribe_week_id,
         level_info=level_info,
         announcements=announcements,
     )
@@ -1170,30 +1265,82 @@ def redeem_code():
         return redirect(url_for("auth", mode="login"))
 
     code_str = (request.form.get("code") or "").strip().upper()
+    code_type = (request.form.get("code_type") or "").strip()
+    week_id_raw = (request.form.get("week_id") or "").strip()
+    selected_week_id = int(week_id_raw) if week_id_raw.isdigit() else None
+
     code_obj = ActivationCode.query.filter_by(code=code_str).first()
     if not code_obj:
         flash("كود التفعيل غير صحيح.", "danger")
-        return redirect(url_for("student_dashboard"))
+        return redirect(url_for("student_dashboard", tab="courses"))
 
     if code_obj.is_used:
         flash("هذا الكود تم استخدامه مسبقاً.", "warning")
-        return redirect(url_for("student_dashboard"))
+        return redirect(url_for("student_dashboard", tab="courses"))
 
     code_obj.is_used = True
     code_obj.used_by = user.id
     user.is_active = True
 
-    if code_obj.week_id:
-        exists_sub = WeekSubscription.query.filter_by(user_id=user.id, week_id=code_obj.week_id).first()
+    target_week_id = code_obj.week_id or selected_week_id
+    if target_week_id:
+        exists_sub = WeekSubscription.query.filter_by(user_id=user.id, week_id=target_week_id).first()
         if not exists_sub:
-            db.session.add(WeekSubscription(user_id=user.id, week_id=code_obj.week_id))
+            db.session.add(WeekSubscription(user_id=user.id, week_id=target_week_id))
         db.session.commit()
-        flash("تم تفعيل الأسبوع / الباقة بنجاح!", "success")
-        return redirect(url_for("student_dashboard", week_id=code_obj.week_id))
+        type_label = "كود المحاضرة" if code_type == "lecture" else ("كود السنتر" if code_type == "center" else "كود الباقة")
+        flash(f"تم تفعيل الباقة بنجاح ({type_label})!", "success")
+        return redirect(url_for("student_dashboard", week_id=target_week_id))
 
     db.session.commit()
     flash("تم تفعيل حسابك بنجاح!", "success")
-    return redirect(url_for("student_dashboard"))
+    return redirect(url_for("student_dashboard", tab="courses"))
+
+
+@app.route("/student/subscribe-vodafone", methods=["POST"])
+def subscribe_vodafone():
+    user = get_current_user()
+    if not user:
+        return redirect(url_for("auth", mode="login"))
+
+    s = get_settings()
+    week_id_raw = (request.form.get("week_id") or "").strip()
+    week_id = int(week_id_raw) if week_id_raw.isdigit() else None
+    subscription_type = (request.form.get("subscription_type") or "package").strip()
+    sender_phone = (request.form.get("sender_phone") or "").strip()
+    receiver_phone = (request.form.get("receiver_phone") or getattr(s, "vodafone_cash_number", "") or "").strip()
+    notes = (request.form.get("notes") or "").strip()
+    screenshot_file = request.files.get("screenshot")
+
+    if not sender_phone or not receiver_phone:
+        flash("يرجى إدخال الرقم المحوّل منه والرقم المحوّل إليه.", "warning")
+        return redirect(url_for("student_dashboard", tab="courses", subscribe_week_id=week_id))
+
+    screenshot_url = save_uploaded_file(screenshot_file)
+    if not screenshot_url:
+        flash("يرجى إرفاق صورة سكرين شوت صحيحة للتحويل (PNG, JPG, JPEG, WEBP).", "warning")
+        return redirect(url_for("student_dashboard", tab="courses", subscribe_week_id=week_id))
+
+    try:
+        req_obj = SubscriptionRequest(
+            user_id=user.id,
+            week_id=week_id,
+            subscription_type=subscription_type,
+            payment_method="vodafone_cash",
+            sender_phone=sender_phone,
+            receiver_phone=receiver_phone,
+            screenshot_path=screenshot_url,
+            notes=notes,
+            status="pending",
+        )
+        db.session.add(req_obj)
+        db.session.commit()
+        flash("تم إرسال طلب الاشتراك عبر فودافون كاش بنجاح، وسيتم مراجعته من الإدارة.", "success")
+    except Exception:
+        db.session.rollback()
+        flash("تعذر إرسال طلب الاشتراك حالياً، يرجى المحاولة مرة أخرى.", "danger")
+
+    return redirect(url_for("student_dashboard", tab="courses"))
 
 
 @app.route("/student/watch/<int:content_id>", methods=["POST"])
@@ -1369,7 +1516,6 @@ def toggle_maintenance():
     currently_maint = bool(getattr(s, "is_maintenance", False))
 
     if not currently_maint:
-        # تفعيل وضع التحديث وحصر صلاحية التحكم في الجلسة الحالية للمطور
         s.is_maintenance = True
         custom_msg = (request.form.get("maintenance_message") or "").strip()
         if custom_msg:
@@ -1381,7 +1527,6 @@ def toggle_maintenance():
             "warning",
         )
     else:
-        # السماح بإعادة التشغيل فقط لمن يملك جلسة المطور
         if not is_developer_session():
             flash("المنصة في وضع التحديث حالياً ولا يمكن إعادة تشغيلها إلا من جلسة المطور.", "danger")
             return redirect(url_for("admin_dashboard"))
@@ -1456,6 +1601,14 @@ def admin_dashboard():
         codes = []
 
     try:
+        subscription_requests = SubscriptionRequest.query.order_by(SubscriptionRequest.id.desc()).all()
+    except Exception:
+        db.session.rollback()
+        subscription_requests = []
+
+    pending_subscriptions = [sr for sr in subscription_requests if sr.status == "pending"]
+
+    try:
         exam_results = ExamResult.query.order_by(ExamResult.id.desc()).all()
     except Exception:
         db.session.rollback()
@@ -1489,11 +1642,43 @@ def admin_dashboard():
         exams=exams,
         content_sections=CONTENT_SECTIONS,
         codes=codes,
+        subscription_requests=subscription_requests,
+        pending_subscriptions=pending_subscriptions,
         centers=centers,
         announcements=announcements,
         exam_results=exam_results,
         exams_map=exams_map,
     )
+
+
+@app.route("/admin/subscriptions/<int:req_id>/<action>", methods=["POST"])
+def handle_subscription_request(req_id, action):
+    _, err_resp = require_admin()
+    if err_resp:
+        return err_resp
+
+    sr = db.session.get(SubscriptionRequest, req_id)
+    if not sr:
+        flash("طلب الاشتراك غير موجود.", "danger")
+        return redirect(url_for("admin_dashboard"))
+
+    if action == "approve":
+        sr.status = "approved"
+        st = db.session.get(User, sr.user_id)
+        if st:
+            st.is_active = True
+        if sr.week_id:
+            exists_sub = WeekSubscription.query.filter_by(user_id=sr.user_id, week_id=sr.week_id).first()
+            if not exists_sub:
+                db.session.add(WeekSubscription(user_id=sr.user_id, week_id=sr.week_id))
+        db.session.commit()
+        flash("تم قبول الاشتراك وتفعيل الباقة للطالب بنجاح!", "success")
+    elif action == "reject":
+        sr.status = "rejected"
+        db.session.commit()
+        flash("تم رفض طلب الاشتراك.", "info")
+
+    return redirect(url_for("admin_dashboard"))
 
 
 @app.route("/admin/student/<int:student_id>/toggle", methods=["POST"])
@@ -1521,6 +1706,7 @@ def update_settings():
     s.teacher_name = (request.form.get("teacher_name") or s.teacher_name).strip()
     s.teacher_bio = (request.form.get("teacher_bio") or "").strip()
     s.whatsapp_number = (request.form.get("whatsapp_number") or "").strip()
+    s.vodafone_cash_number = (request.form.get("vodafone_cash_number") or s.vodafone_cash_number or "").strip()
     s.facebook_url = (request.form.get("facebook_url") or "").strip() or None
     s.instagram_url = (request.form.get("instagram_url") or "").strip() or None
     s.tiktok_url = (request.form.get("tiktok_url") or "").strip() or None
@@ -1596,6 +1782,7 @@ def add_week():
                 db.session.add(
                     CourseContent(
                         week_id=week.id,
+                        lecture_title="المحاضرة الأولى",
                         title=vf.filename or "فيديو شرح",
                         section_key="explanation",
                         content_type="video_upload",
@@ -1619,15 +1806,18 @@ def add_content():
         return err_resp
 
     week_id = request.form.get("week_id")
+    lecture_title = (request.form.get("lecture_title") or "المحاضرة الأولى").strip() or "المحاضرة الأولى"
     title = (request.form.get("title") or "").strip()
     section_key = (request.form.get("section_key") or "explanation").strip()
     content_type = (request.form.get("content_type") or "video_link").strip()
     external_link = (request.form.get("external_link") or "").strip()
     duration_or_notes = (request.form.get("duration_or_notes") or "").strip()
+    exam_id_raw = (request.form.get("exam_id") or "").strip()
+    req_exam_raw = (request.form.get("required_exam_id") or "").strip()
 
     week = db.session.get(WeekPackage, int(week_id)) if week_id and week_id.isdigit() else None
     if not week or not title:
-        flash("يرجى اختيار الأسبوع وإدخال عنوان المحتوى.", "warning")
+        flash("يرجى اختيار الباقة وإدخال عنوان العنصر.", "warning")
         return redirect(url_for("admin_dashboard"))
 
     try:
@@ -1641,18 +1831,26 @@ def add_content():
             elif content_type == "file_link":
                 content_type = "file_upload"
 
+        linked_exam_id = int(exam_id_raw) if exam_id_raw.isdigit() else None
+        req_exam_id = int(req_exam_raw) if req_exam_raw.isdigit() else None
+        if section_key == "exam_section" and linked_exam_id and content_type == "video_link" and not source_path:
+            content_type = "exam_link"
+
         db.session.add(
             CourseContent(
                 week_id=week.id,
+                lecture_title=lecture_title,
                 title=title,
                 section_key=section_key,
                 content_type=content_type,
                 source_path=source_path,
+                exam_id=linked_exam_id,
+                required_exam_id=req_exam_id,
                 duration_or_notes=duration_or_notes,
             )
         )
         db.session.commit()
-        flash("تمت إضافة المحتوى داخل الأسبوع بنجاح.", "success")
+        flash("تمت إضافة المحتوى داخل المحاضرة والباقة بنجاح.", "success")
     except Exception:
         db.session.rollback()
         flash("تعذر إضافة المحتوى حالياً، يرجى المحاولة مرة أخرى.", "danger")
@@ -1805,6 +2003,7 @@ def generate_codes():
         return err_resp
 
     grade = normalize_grade_label((request.form.get("grade") or "").strip())
+    code_type = (request.form.get("code_type") or "package").strip()
     week_id_raw = request.form.get("week_id")
     week_id = int(week_id_raw) if week_id_raw and week_id_raw.isdigit() else None
 
@@ -1817,11 +2016,12 @@ def generate_codes():
         flash("يرجى اختيار الصف الدراسي لتوليد الأكواد.", "warning")
         return redirect(url_for("admin_dashboard"))
 
+    prefix = "LEC" if code_type == "lecture" else ("CTR" if code_type == "center" else "AHMED")
     created = 0
     while created < count:
-        code_val = f"AHMED-{secrets.token_hex(3).upper()}"
+        code_val = f"{prefix}-{secrets.token_hex(3).upper()}"
         if not ActivationCode.query.filter_by(code=code_val).first():
-            db.session.add(ActivationCode(code=code_val, grade=grade, week_id=week_id))
+            db.session.add(ActivationCode(code=code_val, code_type=code_type, grade=grade, week_id=week_id))
             created += 1
 
     db.session.commit()
