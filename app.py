@@ -1876,11 +1876,34 @@ def delete_week(week_id):
     _, err_resp = require_admin()
     if err_resp:
         return err_resp
+
     w = db.session.get(WeekPackage, week_id)
-    if w:
+    if not w:
+        flash("الأسبوع / الباقة غير موجودة.", "warning")
+        return redirect(url_for("admin_dashboard"))
+
+    try:
+        content_ids = [c.id for c in (w.contents or [])]
+        if content_ids:
+            WatchedContent.query.filter(WatchedContent.content_id.in_(content_ids)).delete(
+                synchronize_session=False
+            )
+
+        WeekSubscription.query.filter_by(week_id=w.id).delete(synchronize_session=False)
+        ActivationCode.query.filter_by(week_id=w.id).update(
+            {"week_id": None}, synchronize_session=False
+        )
+        SubscriptionRequest.query.filter_by(week_id=w.id).update(
+            {"week_id": None}, synchronize_session=False
+        )
+
         db.session.delete(w)
         db.session.commit()
-        flash("تم حذف الأسبوع / الباقة.", "info")
+        flash("تم حذف الأسبوع / الباقة بنجاح.", "info")
+    except Exception:
+        db.session.rollback()
+        flash("تعذر حذف الباقة بسبب ارتباطها ببيانات أخرى، تم إلغاء العملية بأمان.", "danger")
+
     return redirect(url_for("admin_dashboard"))
 
 
