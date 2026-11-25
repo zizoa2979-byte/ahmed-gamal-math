@@ -15,6 +15,7 @@ from flask import (
     flash,
     session,
     send_from_directory,
+    jsonify,
 )
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import inspect, text
@@ -785,7 +786,7 @@ def compute_student_level(user):
         exam_pct = (sum(best_by_exam.values()) / total_exams) if total_exams > 0 else 0.0
 
         if total_videos > 0 and total_exams > 0:
-            overall = round((watch_pct * 0.4) + (exam_pct * 0.6), 1)
+            overall = round((watch_pct * 0.5) + (exam_pct * 0.5), 1)
         elif total_videos > 0:
             overall = round(watch_pct, 1)
         elif total_exams > 0:
@@ -1265,7 +1266,9 @@ def redeem_code():
         return redirect(url_for("auth", mode="login"))
 
     code_str = (request.form.get("code") or "").strip().upper()
-    code_type = (request.form.get("code_type") or "").strip()
+    code_type = (request.form.get("code_type") or "package").strip()
+    if code_type == "center":
+        code_type = "package"
     week_id_raw = (request.form.get("week_id") or "").strip()
     selected_week_id = int(week_id_raw) if week_id_raw.isdigit() else None
 
@@ -1288,7 +1291,7 @@ def redeem_code():
         if not exists_sub:
             db.session.add(WeekSubscription(user_id=user.id, week_id=target_week_id))
         db.session.commit()
-        type_label = "كود المحاضرة" if code_type == "lecture" else ("كود السنتر" if code_type == "center" else "كود الباقة")
+        type_label = "كود الحصة" if code_type == "lecture" else "كود الباقة"
         flash(f"تم تفعيل الباقة بنجاح ({type_label})!", "success")
         return redirect(url_for("student_dashboard", week_id=target_week_id))
 
@@ -1307,6 +1310,8 @@ def subscribe_vodafone():
     week_id_raw = (request.form.get("week_id") or "").strip()
     week_id = int(week_id_raw) if week_id_raw.isdigit() else None
     subscription_type = (request.form.get("subscription_type") or "package").strip()
+    if subscription_type == "center":
+        subscription_type = "package"
     sender_phone = (request.form.get("sender_phone") or "").strip()
     receiver_phone = (request.form.get("receiver_phone") or getattr(s, "vodafone_cash_number", "") or "").strip()
     notes = (request.form.get("notes") or "").strip()
@@ -1346,19 +1351,37 @@ def subscribe_vodafone():
 @app.route("/student/watch/<int:content_id>", methods=["POST"])
 def mark_watched(content_id):
     user = get_current_user()
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest" or "application/json" in (request.headers.get("Accept") or "")
     if not user:
+        if is_ajax:
+            return jsonify({"ok": False, "error": "unauthorized"}), 401
         return redirect(url_for("auth", mode="login"))
 
     content = db.session.get(CourseContent, content_id)
     if not content:
+        if is_ajax:
+            return jsonify({"ok": False, "error": "not_found"}), 404
         flash("المحتوى غير موجود.", "danger")
         return redirect(url_for("student_dashboard"))
 
-    if not WatchedContent.query.filter_by(user_id=user.id, content_id=content.id).first():
+    already = WatchedContent.query.filter_by(user_id=user.id, content_id=content.id).first()
+    if not already:
         db.session.add(WatchedContent(user_id=user.id, content_id=content.id))
         db.session.commit()
-        flash("تم تسجيل إتمام مشاهدة الدرس.", "success")
 
+    lvl = compute_student_level(user)
+    if is_ajax:
+        return jsonify({
+            "ok": True,
+            "watched": True,
+            "overall": lvl["overall"],
+            "label": lvl["label"],
+            "watched_count": lvl["watched_count"],
+            "total_videos": lvl["total_videos"],
+        })
+
+    if not already:
+        flash("تم رصد مشاهدة الفيديو وتحديث مستواك تلقائياً.", "success")
     return redirect(url_for("student_dashboard", week_id=content.week_id))
 
 
@@ -2027,6 +2050,8 @@ def generate_codes():
 
     grade = normalize_grade_label((request.form.get("grade") or "").strip())
     code_type = (request.form.get("code_type") or "package").strip()
+    if code_type == "center":
+        code_type = "package"
     week_id_raw = request.form.get("week_id")
     week_id = int(week_id_raw) if week_id_raw and week_id_raw.isdigit() else None
 
@@ -2039,7 +2064,7 @@ def generate_codes():
         flash("يرجى اختيار الصف الدراسي لتوليد الأكواد.", "warning")
         return redirect(url_for("admin_dashboard"))
 
-    prefix = "LEC" if code_type == "lecture" else ("CTR" if code_type == "center" else "AHMED")
+    prefix = "LEC" if code_type == "lecture" else "AHMED"
     created = 0
     while created < count:
         code_val = f"{prefix}-{secrets.token_hex(3).upper()}"
