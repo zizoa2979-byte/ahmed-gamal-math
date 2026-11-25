@@ -27,7 +27,9 @@ app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "ahmed-gamal-math-platfo
 
 raw_db_url = os.environ.get("DATABASE_URL", "").strip()
 if raw_db_url.startswith("postgres://"):
-    raw_db_url = raw_db_url.replace("postgres://", "postgresql://", 1)
+    raw_db_url = raw_db_url.replace("postgres://", "postgresql+psycopg2://", 1)
+elif raw_db_url.startswith("postgresql://") and "+psycopg2" not in raw_db_url and "+psycopg" not in raw_db_url:
+    raw_db_url = raw_db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
 
 if raw_db_url:
     app.config["SQLALCHEMY_DATABASE_URI"] = raw_db_url
@@ -107,7 +109,7 @@ def normalize_grade_label(raw_grade):
         "ثالث اعدادي": "الثالث الإعدادي",
         "الثالث اعدادي": "الثالث الإعدادي",
         "الصف الثالث الإعدادي": "الثالث الإعدادي",
-        "الصف الثالث الاعدادي": "الثاني الإعدادي",
+        "الصف الثالث الاعدادي": "الثالث الإعدادي",
         "3 إعدادي": "الثالث الإعدادي",
         "3 اعدادي": "الثالث الإعدادي",
         "أولى ثانوي": "الأول الثانوي",
