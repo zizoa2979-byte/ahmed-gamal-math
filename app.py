@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 import re
@@ -55,6 +56,14 @@ ALLOWED_EXTENSIONS = {
     "png", "jpg", "jpeg", "webp", "gif",
     "mp4", "mov", "avi", "mkv", "webm",
     "pdf", "doc", "docx", "ppt", "pptx", "zip", "rar",
+}
+
+IMAGE_MIME_MAP = {
+    "png": "image/png",
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "webp": "image/webp",
+    "gif": "image/gif",
 }
 
 db = SQLAlchemy(app)
@@ -168,7 +177,7 @@ class PlatformSettings(db.Model):
         db.Text,
         default="منصة متكاملة للرياضيات والهندسة والجبر وحساب المثلثات — شرح مبسط ومنهجي، تدريب مكثف على أفكار الامتحانات، ومتابعة مستمرة للمستوى.",
     )
-    teacher_image = db.Column(db.String(300), nullable=True)
+    teacher_image = db.Column(db.Text, nullable=True)
     whatsapp_number = db.Column(db.String(50), default="201000000000")
     vodafone_cash_number = db.Column(db.String(50), default="01000000000")
     facebook_url = db.Column(db.String(300), nullable=True)
@@ -204,7 +213,7 @@ class WeekPackage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, nullable=True)
-    image_path = db.Column(db.String(400), nullable=True)
+    image_path = db.Column(db.Text, nullable=True)
     grade = db.Column(db.String(80), nullable=False)
     order_num = db.Column(db.Integer, default=1)
     price = db.Column(db.Float, default=0.0)
@@ -223,7 +232,7 @@ class CourseContent(db.Model):
     title = db.Column(db.String(200), nullable=False)
     section_key = db.Column(db.String(50), default="explanation")
     content_type = db.Column(db.String(50), default="video_link")
-    source_path = db.Column(db.String(400), nullable=True)
+    source_path = db.Column(db.Text, nullable=True)
     exam_id = db.Column(db.Integer, db.ForeignKey("exams.id"), nullable=True)
     required_exam_id = db.Column(db.Integer, nullable=True)
     duration_or_notes = db.Column(db.String(300), nullable=True)
@@ -255,7 +264,7 @@ class SubscriptionRequest(db.Model):
     payment_method = db.Column(db.String(60), default="vodafone_cash")
     sender_phone = db.Column(db.String(50), nullable=False)
     receiver_phone = db.Column(db.String(50), nullable=False)
-    screenshot_path = db.Column(db.String(400), nullable=True)
+    screenshot_path = db.Column(db.Text, nullable=True)
     notes = db.Column(db.String(250), nullable=True)
     status = db.Column(db.String(25), default="pending")
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -395,6 +404,18 @@ def init_db():
                         text(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS {col_name} {col_sql}")
                     )
 
+        def alter_to_text_if_needed(table_name, col_name):
+            if table_name not in tables:
+                return
+            for col in inspector.get_columns(table_name):
+                if col["name"] == col_name and "TEXT" not in str(col.get("type", "")).upper():
+                    try:
+                        db.session.execute(
+                            text(f"ALTER TABLE {table_name} ALTER COLUMN {col_name} TYPE TEXT")
+                        )
+                    except Exception:
+                        pass
+
         ensure_columns("users", [
             ("username", "VARCHAR(100)"),
             ("full_name", "VARCHAR(160)"),
@@ -414,7 +435,7 @@ def init_db():
             ("platform_name", "VARCHAR(200) DEFAULT 'الرياضة أسهل وأوضح مع مستر أحمد جمال'"),
             ("teacher_name", "VARCHAR(120) DEFAULT 'مستر / أحمد جمال'"),
             ("teacher_bio", "TEXT"),
-            ("teacher_image", "VARCHAR(300)"),
+            ("teacher_image", "TEXT"),
             ("whatsapp_number", "VARCHAR(50) DEFAULT '201000000000'"),
             ("vodafone_cash_number", "VARCHAR(50) DEFAULT '01000000000'"),
             ("facebook_url", "VARCHAR(300)"),
@@ -428,7 +449,7 @@ def init_db():
 
         ensure_columns("week_packages", [
             ("description", "TEXT"),
-            ("image_path", "VARCHAR(400)"),
+            ("image_path", "TEXT"),
             ("grade", "VARCHAR(80)"),
             ("order_num", "INTEGER DEFAULT 1"),
             ("price", "FLOAT DEFAULT 0.0"),
@@ -441,7 +462,7 @@ def init_db():
             ("lecture_title", "VARCHAR(200) DEFAULT 'المحاضرة الأولى'"),
             ("section_key", "VARCHAR(50) DEFAULT 'explanation'"),
             ("content_type", "VARCHAR(50) DEFAULT 'video_link'"),
-            ("source_path", "VARCHAR(400)"),
+            ("source_path", "TEXT"),
             ("exam_id", "INTEGER"),
             ("required_exam_id", "INTEGER"),
             ("duration_or_notes", "VARCHAR(300)"),
@@ -472,11 +493,16 @@ def init_db():
             ("payment_method", "VARCHAR(60) DEFAULT 'vodafone_cash'"),
             ("sender_phone", "VARCHAR(50)"),
             ("receiver_phone", "VARCHAR(50)"),
-            ("screenshot_path", "VARCHAR(400)"),
+            ("screenshot_path", "TEXT"),
             ("notes", "VARCHAR(250)"),
             ("status", "VARCHAR(25) DEFAULT 'pending'"),
             ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
         ])
+
+        alter_to_text_if_needed("subscription_requests", "screenshot_path")
+        alter_to_text_if_needed("week_packages", "image_path")
+        alter_to_text_if_needed("course_contents", "source_path")
+        alter_to_text_if_needed("platform_settings", "teacher_image")
 
         db.session.commit()
         _sync_legacy_user_table(inspect(db.engine))
@@ -700,6 +726,24 @@ def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
+def save_image_as_data_url(file_storage):
+    if not file_storage or not file_storage.filename:
+        return None
+    ext = file_storage.filename.rsplit(".", 1)[1].lower() if "." in file_storage.filename else ""
+    mime = IMAGE_MIME_MAP.get(ext)
+    if not mime:
+        return None
+    try:
+        raw_bytes = file_storage.read()
+        file_storage.seek(0)
+        if not raw_bytes or len(raw_bytes) > 4 * 1024 * 1024:
+            return None
+        b64 = base64.b64encode(raw_bytes).decode("ascii")
+        return f"data:{mime};base64,{b64}"
+    except Exception:
+        return None
+
+
 def save_uploaded_file(file_storage):
     if not file_storage or not file_storage.filename:
         return None
@@ -736,6 +780,10 @@ def format_embed_url(url):
         qs = parse_qs(parsed.query)
         if "v" in qs and qs["v"]:
             return f"https://www.youtube.com/embed/{qs['v'][0]}"
+        if "/shorts/" in parsed.path:
+            vid = parsed.path.split("/shorts/", 1)[1].split("/")[0]
+            if vid:
+                return f"https://www.youtube.com/embed/{vid}"
         if "/embed/" in parsed.path:
             return u
     return u
@@ -1388,9 +1436,9 @@ def subscribe_vodafone():
         flash("يرجى إدخال الرقم المحوّل منه والرقم المحوّل إليه.", "warning")
         return redirect(url_for("student_dashboard", tab="courses", subscribe_week_id=week_id))
 
-    screenshot_url = save_uploaded_file(screenshot_file)
+    screenshot_url = save_image_as_data_url(screenshot_file) or save_uploaded_file(screenshot_file)
     if not screenshot_url:
-        flash("يرجى إرفاق صورة سكرين شوت صحيحة للتحويل (PNG, JPG, JPEG, WEBP).", "warning")
+        flash("يرجى إرفاق صورة سكرين شوت صحيحة للتحويل (PNG, JPG, JPEG, WEBP) بحجم مناسب.", "warning")
         return redirect(url_for("student_dashboard", tab="courses", subscribe_week_id=week_id))
 
     try:
@@ -1629,6 +1677,18 @@ def toggle_maintenance():
     return redirect(url_for("admin_dashboard"))
 
 
+@app.route("/admin/weeks/<int:week_id>/manage")
+def manage_week(week_id):
+    _, err_resp = require_admin()
+    if err_resp:
+        return err_resp
+    w = db.session.get(WeekPackage, week_id)
+    if not w:
+        flash("الباقة غير موجودة.", "warning")
+        return redirect(url_for("admin_dashboard"))
+    return redirect(url_for("admin_dashboard", manage_week_id=w.id, grade=normalize_grade_label(w.grade)))
+
+
 @app.route("/admin")
 def admin_dashboard():
     admin_user, err_resp = require_admin()
@@ -1637,6 +1697,7 @@ def admin_dashboard():
 
     show_login_modal = bool(session.pop("show_login_modal", False))
     selected_grade = normalize_grade_label((request.args.get("grade") or "").strip())
+    manage_week_id_raw = (request.args.get("manage_week_id") or request.args.get("week_id") or "").strip()
 
     try:
         all_users = User.query.order_by(User.id.desc()).all()
@@ -1667,6 +1728,10 @@ def admin_dashboard():
         if selected_grade
         else all_weeks
     )
+
+    managed_week = None
+    if manage_week_id_raw.isdigit():
+        managed_week = db.session.get(WeekPackage, int(manage_week_id_raw))
 
     try:
         all_exams = Exam.query.order_by(Exam.id.desc()).all()
@@ -1723,6 +1788,7 @@ def admin_dashboard():
         admin_user=admin_user,
         show_login_modal=show_login_modal,
         selected_grade=selected_grade,
+        managed_week=managed_week,
         pending_students=pending_students,
         students_data=students_data,
         students_by_grade=students_by_grade,
@@ -1808,7 +1874,7 @@ def update_settings():
         s.pass_percentage_required = 50.0
 
     img_file = request.files.get("teacher_image")
-    saved_img = save_uploaded_file(img_file)
+    saved_img = save_image_as_data_url(img_file) or save_uploaded_file(img_file)
     if saved_img:
         s.teacher_image = saved_img
 
@@ -1851,7 +1917,7 @@ def add_week():
 
     try:
         img_file = request.files.get("week_image") or request.files.get("image")
-        saved_week_img = save_uploaded_file(img_file)
+        saved_week_img = save_image_as_data_url(img_file) or save_uploaded_file(img_file)
 
         week = WeekPackage(
             title=title,
@@ -1917,7 +1983,7 @@ def add_subweek():
     )
     db.session.commit()
     flash(f"تمت إضافة ({subweek_title}) داخل باقة ({week.title}) بنجاح.", "success")
-    return redirect(url_for("admin_dashboard"))
+    return redirect(url_for("admin_dashboard", manage_week_id=week.id))
 
 
 @app.route("/admin/contents/add", methods=["POST"])
@@ -1976,7 +2042,7 @@ def add_content():
         db.session.rollback()
         flash("تعذر إضافة المحتوى حالياً، يرجى المحاولة مرة أخرى.", "danger")
 
-    return redirect(url_for("admin_dashboard"))
+    return redirect(url_for("admin_dashboard", manage_week_id=week.id))
 
 
 @app.route("/admin/weeks/<int:week_id>/toggle", methods=["POST"])
