@@ -107,7 +107,7 @@ def normalize_grade_label(raw_grade):
         "ثالث اعدادي": "الثالث الإعدادي",
         "الثالث اعدادي": "الثالث الإعدادي",
         "الصف الثالث الإعدادي": "الثالث الإعدادي",
-        "الصف الثالث الاعدادي": "الثالث الإعدادي",
+        "الصف الثالث الاعدادي": "الثاني الإعدادي",
         "3 إعدادي": "الثالث الإعدادي",
         "3 اعدادي": "الثالث الإعدادي",
         "أولى ثانوي": "الأول الثانوي",
@@ -132,6 +132,8 @@ def normalize_grade_label(raw_grade):
         "الصف الثالث الثانوي": "الثالث الثانوي",
         "3 ثانوي": "الثالث الثانوي",
     }
+    if compact in ("الصف الثالث الاعدادي", "الصف الثالث الإعدادي"):
+        return "الثالث الإعدادي"
     return mapping.get(compact, compact)
 
 
@@ -773,22 +775,48 @@ def exams_for_grade(grade):
 
 def compute_student_level(user):
     try:
-        grade_weeks = weeks_for_grade(user.grade)
-        video_items = []
-        for w in grade_weeks:
-            for c in getattr(w, "contents", []) or []:
-                if c.content_type in ("video_link", "video_upload"):
-                    video_items.append(c.id)
-
-        watched_ids = {
-            wc.content_id for wc in WatchedContent.query.filter_by(user_id=user.id).all()
+        user_norm_grade = normalize_grade_label(user.grade)
+        sub_week_ids = {
+            s.week_id for s in WeekSubscription.query.filter_by(user_id=user.id).all() if s.week_id
         }
-        watched_count = sum(1 for cid in video_items if cid in watched_ids)
-        total_videos = len(video_items)
+
+        all_weeks = WeekPackage.query.order_by(WeekPackage.order_num.asc(), WeekPackage.id.asc()).all()
+        relevant_weeks = {}
+        for w in all_weeks:
+            in_grade = bool(user_norm_grade and normalize_grade_label(w.grade) in (user_norm_grade, "ALL_GRADES"))
+            if in_grade or (w.id in sub_week_ids):
+                relevant_weeks[w.id] = w
+
+        video_ids = []
+        seen_video_ids = set()
+        for w in relevant_weeks.values():
+            for c in getattr(w, "contents", []) or []:
+                ctype = (c.content_type or "").lower()
+                src = (c.source_path or "").lower()
+                is_video = (
+                    ctype in ("video_link", "video_upload")
+                    or "video" in ctype
+                    or any(src.endswith(ext) for ext in (".mp4", ".mov", ".avi", ".mkv", ".webm"))
+                )
+                if is_video and c.id not in seen_video_ids:
+                    seen_video_ids.add(c.id)
+                    video_ids.append(c.id)
+
+        watched_rows = WatchedContent.query.filter_by(user_id=user.id).all()
+        watched_ids = {wc.content_id for wc in watched_rows}
+
+        for cid in watched_ids:
+            if cid not in seen_video_ids:
+                c_obj = db.session.get(CourseContent, cid)
+                if c_obj:
+                    seen_video_ids.add(c_obj.id)
+                    video_ids.append(c_obj.id)
+
+        watched_count = sum(1 for cid in video_ids if cid in watched_ids)
+        total_videos = len(video_ids)
         watch_pct = (watched_count / total_videos * 100.0) if total_videos > 0 else 0.0
 
-        grade_exams = exams_for_grade(user.grade)
-        total_exams = len(grade_exams)
+        grade_exams = exams_for_grade(user_norm_grade)
         results = ExamResult.query.filter_by(user_id=user.id).order_by(ExamResult.id.desc()).all()
         best_by_exam = {}
         for r in results:
@@ -796,6 +824,8 @@ def compute_student_level(user):
             if r.exam_id not in best_by_exam or pct_val > best_by_exam[r.exam_id]:
                 best_by_exam[r.exam_id] = pct_val
 
+        exam_id_set = {ex.id for ex in grade_exams} | set(best_by_exam.keys())
+        total_exams = len(exam_id_set)
         solved_exams = len(best_by_exam)
         avg_score = round(sum(best_by_exam.values()) / solved_exams, 1) if solved_exams > 0 else 0.0
         exam_pct = (sum(best_by_exam.values()) / total_exams) if total_exams > 0 else 0.0

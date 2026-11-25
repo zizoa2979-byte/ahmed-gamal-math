@@ -574,6 +574,7 @@
             <tr>
               <th>العنوان</th>
               <th>الصف</th>
+              <th>تاريخ الإضافة</th>
               <th>السعر</th>
               <th>عدد العناصر / الأسابيع</th>
               <th>الحالة</th>
@@ -583,8 +584,13 @@
           <tbody>
             {% for w in weeks %}
               <tr>
-                <td class="fw-bold">{{ w.title }}</td>
+                <td class="fw-bold">
+                  <a href="{{ url_for('admin_dashboard', manage_week_id=w.id) }}#managedWeekBox" class="text-info text-decoration-none">
+                    {{ w.title }}
+                  </a>
+                </td>
                 <td>{{ w.grade }}</td>
+                <td>{{ w.created_at.strftime('%Y-%m-%d') if w.created_at else '-' }}</td>
                 <td>{{ 'مجانية' if w.is_free or not w.price else (w.price ~ ' جنيه') }}</td>
                 <td>{{ w.contents|length }}</td>
                 <td>
@@ -594,6 +600,9 @@
                 </td>
                 <td>
                   <div class="d-flex gap-1 flex-wrap">
+                    <a href="{{ url_for('admin_dashboard', manage_week_id=w.id) }}#managedWeekBox" class="btn btn-sm btn-info text-dark fw-bold">
+                      فتح وإدارة
+                    </a>
                     <form method="POST" action="{{ url_for('toggle_week', week_id=w.id) }}">
                       <button type="submit" class="btn btn-sm btn-outline-info">
                         {{ 'إخفاء' if w.is_published else 'نشر' }}
@@ -606,12 +615,117 @@
                 </td>
               </tr>
             {% else %}
-              <tr><td colspan="6" class="text-secondary">لا توجد باقات حالياً.</td></tr>
+              <tr><td colspan="7" class="text-secondary">لا توجد باقات حالياً.</td></tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
     </section>
+
+    <!-- لوحة إدارة الباقة المفتوحة -->
+    {% if managed_week %}
+      <section class="math-card mb-4 border-info border-opacity-50" id="managedWeekBox">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+          <div>
+            <span class="badge bg-info text-dark mb-1">{{ managed_week.grade }}</span>
+            <h2 class="h5 fw-bold text-info mb-1">إدارة محتوى الباقة: {{ managed_week.title }}</h2>
+            <div class="small text-secondary">
+              تاريخ الإضافة: {{ managed_week.created_at.strftime('%Y-%m-%d %H:%M') if managed_week.created_at else '-' }} •
+              الحالة: {{ 'منشورة' if managed_week.is_published else 'مخفية' }}
+            </div>
+          </div>
+          <div class="d-flex gap-2 flex-wrap">
+            <form method="POST" action="{{ url_for('toggle_week', week_id=managed_week.id) }}">
+              <button type="submit" class="btn btn-sm btn-outline-info">
+                {{ 'إخفاء الباقة' if managed_week.is_published else 'نشر الباقة' }}
+              </button>
+            </form>
+            <form method="POST" action="{{ url_for('delete_week', week_id=managed_week.id) }}" onsubmit="return confirm('تأكيد حذف الباقة بالكامل؟');">
+              <button type="submit" class="btn btn-sm btn-danger">حذف الباقة</button>
+            </form>
+            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-sm btn-outline-light">إغلاق</a>
+          </div>
+        </div>
+
+        <form method="POST" action="{{ url_for('add_content') }}" enctype="multipart/form-data" class="row g-3 p-3 rounded-4 bg-dark border border-info border-opacity-25 mb-4">
+          <input type="hidden" name="week_id" value="{{ managed_week.id }}" />
+          <div class="col-12">
+            <div class="fw-bold text-info small">إضافة فيديو أو عنصر جديد داخل محاضرة في هذه الباقة</div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small fw-bold">اسم المحاضرة أو الأسبوع</label>
+            <input type="text" name="lecture_title" class="form-control" value="المحاضرة الأولى" required />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small fw-bold">عنوان الفيديو / العنصر</label>
+            <input type="text" name="title" class="form-control" placeholder="مثال: شرح الدرس الثاني" required />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small fw-bold">القسم</label>
+            <select name="section_key" class="form-select">
+              {% for key_val, key_label in content_sections %}
+                <option value="{{ key_val }}">{{ key_label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small fw-bold">نوع المحتوى</label>
+            <select name="content_type" class="form-select">
+              <option value="video_upload">رفع فيديو مباشر</option>
+              <option value="video_link">رابط فيديو (يوتيوب)</option>
+              <option value="file_upload">رفع ملف / واجب</option>
+              <option value="file_link">رابط ملف خارجي</option>
+              <option value="exam_link">ربط اختبار</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small fw-bold">ملف فيديو / ملف من الجهاز</label>
+            <input type="file" name="media_file" class="form-control" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small fw-bold">أو رابط خارجي</label>
+            <input type="text" name="external_link" class="form-control" placeholder="https://..." />
+          </div>
+          <div class="col-12">
+            <button type="submit" class="btn btn-success fw-bold px-4">إضافة للباقة</button>
+          </div>
+        </form>
+
+        <h3 class="h6 fw-bold text-white mb-3">العناصر والفيديوهات داخل الباقة ({{ managed_week.contents|length }})</h3>
+        {% if managed_week.contents %}
+          <div class="table-responsive">
+            <table class="table table-dark table-striped table-dark-custom align-middle small">
+              <thead>
+                <tr>
+                  <th>المحاضرة / الأسبوع</th>
+                  <th>العنوان</th>
+                  <th>القسم</th>
+                  <th>النوع</th>
+                  <th>حذف</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in managed_week.contents %}
+                  <tr>
+                    <td>{{ item.lecture_title or 'المحاضرة الأولى' }}</td>
+                    <td class="fw-bold">{{ item.title }}</td>
+                    <td>{{ item.section_key }}</td>
+                    <td>{{ item.content_type }}</td>
+                    <td>
+                      <form method="POST" action="{{ url_for('delete_content', content_id=item.id) }}" onsubmit="return confirm('حذف هذا العنصر من الباقة؟');">
+                        <button type="submit" class="btn btn-sm btn-danger">حذف</button>
+                      </form>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="text-secondary small">لا توجد عناصر أو فيديوهات مضافة داخل هذه الباقة بعد.</div>
+        {% endif %}
+      </section>
+    {% endif %}
 
     <!-- توليد وإدارة أكواد التفعيل -->
     <section class="math-card mb-4">
