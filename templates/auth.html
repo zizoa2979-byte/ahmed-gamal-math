@@ -14,6 +14,10 @@
       --brand-secondary: #10b981;
       --line-subtle: rgba(148, 163, 184, 0.14);
     }
+    html, body {
+      overflow-x: hidden;
+      max-width: 100%;
+    }
     body {
       background-color: var(--bg-canvas);
       background-image:
@@ -25,6 +29,10 @@
       min-height: 100vh;
       display: flex;
       flex-direction: column;
+    }
+    main {
+      overflow-x: hidden;
+      max-width: 100%;
     }
     .auth-shell {
       position: relative;
@@ -58,6 +66,14 @@
       color: #f8fafc;
       border-color: var(--brand-primary);
       box-shadow: 0 0 0 0.2rem rgba(14, 165, 233, 0.16);
+    }
+    .input-group .form-control {
+      border-radius: 0 12px 12px 0;
+    }
+    .input-group .btn {
+      border-radius: 12px 0 0 12px;
+      border-color: rgba(148, 163, 184, 0.22);
+      color: #cbd5e1;
     }
     .btn-math-action {
       background: linear-gradient(90deg, #0284c7 0%, #0ea5e9 100%);
@@ -200,7 +216,7 @@
             <label class="form-label small fw-bold">كلمة السر</label>
             <div class="input-group">
               <input type="password" id="regPasswordInput" name="password" class="form-control" placeholder="اختر كلمة سر قوية" required />
-              <button type="button" class="btn btn-outline-secondary" onclick="togglePassField('regPasswordInput', this)">
+              <button type="button" class="btn btn-outline-secondary" onclick="togglePassField('regPasswordInput', this)" aria-label="إظهار أو إخفاء كلمة السر">
                 <i class="bi bi-eye"></i>
               </button>
             </div>
@@ -234,7 +250,7 @@
             <label class="form-label small fw-bold">كلمة السر</label>
             <div class="input-group">
               <input type="password" id="loginPasswordInput" name="password" class="form-control" placeholder="أدخل كلمة السر" required />
-              <button type="button" class="btn btn-outline-secondary" onclick="togglePassField('loginPasswordInput', this)">
+              <button type="button" class="btn btn-outline-secondary" onclick="togglePassField('loginPasswordInput', this)" aria-label="إظهار أو إخفاء كلمة السر">
                 <i class="bi bi-eye"></i>
               </button>
             </div>
@@ -258,7 +274,7 @@
 
   {% if settings.whatsapp_number %}
     <a href="https://wa.me/{{ clean_wa_phone(settings.whatsapp_number) }}?text={{ quote('السلام عليكم، أستفسر بخصوص منصة الرياضيات مع ' ~ (settings.teacher_name if settings.teacher_name and settings.teacher_name != 'None' else 'مستر أحمد جمال')) }}"
-       target="_blank" class="floating-support-btn">
+       target="_blank" rel="noopener noreferrer" class="floating-support-btn">
       <i class="bi bi-chat-dots-fill"></i>
       <span>تواصل مع الدعم</span>
     </a>

@@ -24,6 +24,10 @@
       --brand-accent: #6366f1;
       --line-subtle: rgba(148, 163, 184, 0.14);
     }
+    html, body {
+      overflow-x: hidden;
+      max-width: 100%;
+    }
     body {
       background-color: var(--bg-canvas);
       background-image:
@@ -35,6 +39,10 @@
       min-height: 100vh;
       display: flex;
       flex-direction: column;
+    }
+    main {
+      overflow-x: hidden;
+      max-width: 100%;
     }
     .math-topbar {
       background: linear-gradient(90deg, #075985 0%, #0284c7 50%, #0369a1 100%);
@@ -273,22 +281,22 @@
 
           <div class="d-flex flex-wrap gap-2">
             {% if settings.facebook_url %}
-              <a href="{{ settings.facebook_url }}" target="_blank" class="social-chip">
+              <a href="{{ settings.facebook_url }}" target="_blank" rel="noopener noreferrer" class="social-chip">
                 <i class="bi bi-facebook text-info"></i> فيسبوك
               </a>
             {% endif %}
             {% if settings.instagram_url %}
-              <a href="{{ settings.instagram_url }}" target="_blank" class="social-chip">
+              <a href="{{ settings.instagram_url }}" target="_blank" rel="noopener noreferrer" class="social-chip">
                 <i class="bi bi-instagram text-info"></i> إنستجرام
               </a>
             {% endif %}
             {% if settings.tiktok_url %}
-              <a href="{{ settings.tiktok_url }}" target="_blank" class="social-chip">
+              <a href="{{ settings.tiktok_url }}" target="_blank" rel="noopener noreferrer" class="social-chip">
                 <i class="bi bi-tiktok text-info"></i> تيك توك
               </a>
             {% endif %}
             {% if settings.youtube_url %}
-              <a href="{{ settings.youtube_url }}" target="_blank" class="social-chip">
+              <a href="{{ settings.youtube_url }}" target="_blank" rel="noopener noreferrer" class="social-chip">
                 <i class="bi bi-youtube text-info"></i> يوتيوب
               </a>
             {% endif %}
@@ -401,7 +409,7 @@
 
   {% if settings.whatsapp_number %}
     <a href="https://wa.me/{{ clean_wa_phone(settings.whatsapp_number) }}?text={{ quote('السلام عليكم، أستفسر بخصوص منصة الرياضيات مع ' ~ (settings.teacher_name if settings.teacher_name and settings.teacher_name != 'None' else 'مستر أحمد جمال')) }}"
-       target="_blank" class="floating-support-btn">
+       target="_blank" rel="noopener noreferrer" class="floating-support-btn">
       <i class="bi bi-chat-dots-fill"></i>
       <span>تواصل مع الدعم</span>
     </a>

@@ -6,6 +6,7 @@ import secrets
 from datetime import datetime, timedelta
 from urllib.parse import quote, urlparse, parse_qs
 
+import requests
 from flask import (
     Flask,
     render_template,
@@ -51,6 +52,10 @@ default_upload_dir = (
 )
 app.config["UPLOAD_FOLDER"] = os.environ.get("UPLOAD_FOLDER", default_upload_dir)
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "").strip()
+SUPABASE_BUCKET = os.environ.get("SUPABASE_BUCKET", "platform-media").strip()
 
 ALLOWED_EXTENSIONS = {
     "png", "jpg", "jpeg", "webp", "gif",
@@ -744,11 +749,43 @@ def save_image_as_data_url(file_storage):
         return None
 
 
+def upload_to_supabase(file_storage, folder="uploads"):
+    if not SUPABASE_URL or not SUPABASE_KEY or not file_storage or not file_storage.filename:
+        return None
+    try:
+        safe_name = secure_filename(file_storage.filename) or "media"
+        unique_name = f"{folder}/{secrets.token_hex(6)}_{safe_name}"
+        upload_url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_BUCKET}/{unique_name}"
+
+        file_bytes = file_storage.read()
+        file_storage.seek(0)
+        if not file_bytes:
+            return None
+
+        headers = {
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+            "apikey": SUPABASE_KEY,
+            "Content-Type": file_storage.mimetype or "application/octet-stream",
+            "x-upsert": "true",
+        }
+        resp = requests.post(upload_url, headers=headers, data=file_bytes, timeout=60)
+        if resp.status_code in (200, 201):
+            return f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{unique_name}"
+    except Exception:
+        pass
+    return None
+
+
 def save_uploaded_file(file_storage):
     if not file_storage or not file_storage.filename:
         return None
     if not allowed_file(file_storage.filename):
         return None
+
+    supa_url = upload_to_supabase(file_storage)
+    if supa_url:
+        return supa_url
+
     try:
         os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
         safe_name = secure_filename(file_storage.filename) or "file"
@@ -789,6 +826,17 @@ def format_embed_url(url):
     return u
 
 
+def _grant_week_subscription(user_id, week_id):
+    if not user_id or not week_id:
+        return
+    week_obj = db.session.get(WeekPackage, int(week_id))
+    if not week_obj:
+        return
+    exists_sub = WeekSubscription.query.filter_by(user_id=int(user_id), week_id=week_obj.id).first()
+    if not exists_sub:
+        db.session.add(WeekSubscription(user_id=int(user_id), week_id=week_obj.id))
+
+
 def weeks_for_grade(grade):
     try:
         norm_g = normalize_grade_label(grade)
@@ -823,6 +871,17 @@ def exams_for_grade(grade):
         return []
 
 
+def _is_video_content_item(c):
+    ctype = (getattr(c, "content_type", None) or "").lower()
+    src = (getattr(c, "source_path", None) or "").lower()
+    return (
+        ctype in ("video_link", "video_upload")
+        or "video" in ctype
+        or "youtu" in src
+        or any(src.endswith(ext) for ext in (".mp4", ".mov", ".avi", ".mkv", ".webm"))
+    )
+
+
 def compute_student_level(user):
     try:
         user_norm_grade = normalize_grade_label(user.grade)
@@ -833,27 +892,32 @@ def compute_student_level(user):
         all_weeks = WeekPackage.query.order_by(WeekPackage.order_num.asc(), WeekPackage.id.asc()).all()
         relevant_weeks = {}
         for w in all_weeks:
-            in_grade = bool(user_norm_grade and normalize_grade_label(w.grade) in (user_norm_grade, "ALL_GRADES"))
+            w_grade = normalize_grade_label(w.grade)
+            in_grade = bool(
+                user_norm_grade
+                and w_grade
+                and (w_grade == user_norm_grade or w_grade == "ALL_GRADES")
+            )
             if in_grade or (w.id in sub_week_ids):
                 relevant_weeks[w.id] = w
+
+        watched_rows = WatchedContent.query.filter_by(user_id=user.id).all()
+        watched_ids = {wc.content_id for wc in watched_rows}
+
+        for cid in watched_ids:
+            c_obj = db.session.get(CourseContent, cid)
+            if c_obj and c_obj.week_id and c_obj.week_id not in relevant_weeks:
+                w_obj = db.session.get(WeekPackage, c_obj.week_id)
+                if w_obj:
+                    relevant_weeks[w_obj.id] = w_obj
 
         video_ids = []
         seen_video_ids = set()
         for w in relevant_weeks.values():
-            for c in getattr(w, "contents", []) or []:
-                ctype = (c.content_type or "").lower()
-                src = (c.source_path or "").lower()
-                is_video = (
-                    ctype in ("video_link", "video_upload")
-                    or "video" in ctype
-                    or any(src.endswith(ext) for ext in (".mp4", ".mov", ".avi", ".mkv", ".webm"))
-                )
-                if is_video and c.id not in seen_video_ids:
+            for c in sorted(getattr(w, "contents", []) or [], key=lambda x: x.id):
+                if _is_video_content_item(c) and c.id not in seen_video_ids:
                     seen_video_ids.add(c.id)
                     video_ids.append(c.id)
-
-        watched_rows = WatchedContent.query.filter_by(user_id=user.id).all()
-        watched_ids = {wc.content_id for wc in watched_rows}
 
         for cid in watched_ids:
             if cid not in seen_video_ids:
@@ -1402,9 +1466,7 @@ def redeem_code():
 
     target_week_id = code_obj.week_id or selected_week_id
     if target_week_id:
-        exists_sub = WeekSubscription.query.filter_by(user_id=user.id, week_id=target_week_id).first()
-        if not exists_sub:
-            db.session.add(WeekSubscription(user_id=user.id, week_id=target_week_id))
+        _grant_week_subscription(user.id, target_week_id)
         db.session.commit()
         type_label = "كود الحصة" if code_type == "lecture" else "كود الباقة"
         flash(f"تم تفعيل الباقة بنجاح ({type_label}) والكود أصبح مستخدماً لمرة واحدة فقط!", "success")
@@ -1436,7 +1498,7 @@ def subscribe_vodafone():
         flash("يرجى إدخال الرقم المحوّل منه والرقم المحوّل إليه.", "warning")
         return redirect(url_for("student_dashboard", tab="courses", subscribe_week_id=week_id))
 
-    screenshot_url = save_image_as_data_url(screenshot_file) or save_uploaded_file(screenshot_file)
+    screenshot_url = save_uploaded_file(screenshot_file) or save_image_as_data_url(screenshot_file)
     if not screenshot_url:
         flash("يرجى إرفاق صورة سكرين شوت صحيحة للتحويل (PNG, JPG, JPEG, WEBP) بحجم مناسب.", "warning")
         return redirect(url_for("student_dashboard", tab="courses", subscribe_week_id=week_id))
@@ -1824,9 +1886,7 @@ def handle_subscription_request(req_id, action):
         if st:
             st.is_active = True
         if sr.week_id:
-            exists_sub = WeekSubscription.query.filter_by(user_id=sr.user_id, week_id=sr.week_id).first()
-            if not exists_sub:
-                db.session.add(WeekSubscription(user_id=sr.user_id, week_id=sr.week_id))
+            _grant_week_subscription(sr.user_id, sr.week_id)
         db.session.commit()
         flash("تم قبول الاشتراك وتفعيل الباقة للطالب بنجاح!", "success")
     elif action == "reject":
@@ -1874,7 +1934,7 @@ def update_settings():
         s.pass_percentage_required = 50.0
 
     img_file = request.files.get("teacher_image")
-    saved_img = save_image_as_data_url(img_file) or save_uploaded_file(img_file)
+    saved_img = save_uploaded_file(img_file) or save_image_as_data_url(img_file)
     if saved_img:
         s.teacher_image = saved_img
 
@@ -1917,7 +1977,7 @@ def add_week():
 
     try:
         img_file = request.files.get("week_image") or request.files.get("image")
-        saved_week_img = save_image_as_data_url(img_file) or save_uploaded_file(img_file)
+        saved_week_img = save_uploaded_file(img_file) or save_image_as_data_url(img_file)
 
         week = WeekPackage(
             title=title,

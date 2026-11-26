@@ -410,9 +410,16 @@
                 <p class="small text-secondary mt-1 mb-0">{{ active_week.description }}</p>
               {% endif %}
             </div>
-            <a href="{{ url_for('student_dashboard', tab='courses') }}" class="btn btn-sm btn-outline-light rounded-pill px-3">
-              <i class="bi bi-arrow-right me-1"></i> كل الباقات والأسابيع
-            </a>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              {% if level_info %}
+                <span class="badge bg-success bg-opacity-20 text-success border border-success border-opacity-40 px-3 py-2 rounded-pill">
+                  المشاهدة: <strong id="activeWeekWatchedLabel">{{ level_info.watched_count }} من {{ level_info.total_videos }}</strong> • التقدم: <strong id="activeWeekOverallLabel">{{ level_info.overall }}%</strong>
+                </span>
+              {% endif %}
+              <a href="{{ url_for('student_dashboard', tab='courses') }}" class="btn btn-sm btn-outline-light rounded-pill px-3">
+                <i class="bi bi-arrow-right me-1"></i> كل الباقات والأسابيع
+              </a>
+            </div>
           </div>
 
           {% if active_week.image_path %}
@@ -769,7 +776,7 @@
               <div>
                 <div class="fs-2 fw-bold" id="watchedCountDisplay">{{ level_info.watched_count }}</div>
                 <div class="fw-bold">فيديوهات تمت مشاهدتها</div>
-                <div class="small opacity-75">من إجمالي {{ level_info.total_videos }} فيديو</div>
+                <div class="small opacity-75" id="watchedTotalSubtext">من إجمالي {{ level_info.total_videos }} فيديو</div>
               </div>
               <i class="bi bi-bookmark-check-fill fs-1 opacity-75"></i>
             </div>
@@ -959,10 +966,15 @@
         const badgeEl = document.getElementById("watchBadge_" + contentId);
         const statusEl = document.getElementById("watchStatusText_" + contentId);
         let reported = false;
+        let playTimer = null;
 
         function reportWatched() {
           if (reported || !watchUrl) return;
           reported = true;
+          if (playTimer) {
+            clearTimeout(playTimer);
+            playTimer = null;
+          }
           fetch(watchUrl, {
             method: "POST",
             headers: {
@@ -984,13 +996,42 @@
                 const overallDisp = document.getElementById("overallProgressDisplay");
                 const labelDisp = document.getElementById("levelLabelDisplay");
                 const countDisp = document.getElementById("watchedCountDisplay");
+                const totalSubtext = document.getElementById("watchedTotalSubtext");
+                const activeWeekWatched = document.getElementById("activeWeekWatchedLabel");
+                const activeWeekOverall = document.getElementById("activeWeekOverallLabel");
                 if (overallDisp) overallDisp.textContent = data.overall + "%";
                 if (labelDisp) labelDisp.textContent = data.label;
                 if (countDisp) countDisp.textContent = data.watched_count;
+                if (totalSubtext && typeof data.total_videos !== "undefined") {
+                  totalSubtext.textContent = "من إجمالي " + data.total_videos + " فيديو";
+                }
+                if (activeWeekWatched && typeof data.total_videos !== "undefined") {
+                  activeWeekWatched.textContent = data.watched_count + " من " + data.total_videos;
+                }
+                if (activeWeekOverall) {
+                  activeWeekOverall.textContent = data.overall + "%";
+                }
               }
             })
             .catch(function () {});
         }
+
+        vid.addEventListener("play", function () {
+          if (!reported && !playTimer) {
+            playTimer = setTimeout(function () {
+              if (!vid.paused && !reported) {
+                reportWatched();
+              }
+            }, 8000);
+          }
+        });
+
+        vid.addEventListener("pause", function () {
+          if (playTimer) {
+            clearTimeout(playTimer);
+            playTimer = null;
+          }
+        });
 
         vid.addEventListener("timeupdate", function () {
           if (!vid.duration || !isFinite(vid.duration) || vid.duration <= 0) return;
