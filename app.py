@@ -4,9 +4,10 @@ import os
 import re
 import secrets
 from datetime import datetime, timedelta
+from urllib import request as url_request
+from urllib.error import URLError, HTTPError
 from urllib.parse import quote, urlparse, parse_qs
 
-import requests
 from flask import (
     Flask,
     render_template,
@@ -51,7 +52,11 @@ default_upload_dir = (
     "/tmp/uploads" if os.environ.get("VERCEL") else os.path.join(BASE_DIR, "static", "uploads")
 )
 app.config["UPLOAD_FOLDER"] = os.environ.get("UPLOAD_FOLDER", default_upload_dir)
-os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
+try:
+    os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
+except Exception:
+    app.config["UPLOAD_FOLDER"] = "/tmp/uploads"
+    os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "").strip()
@@ -547,6 +552,10 @@ def init_db():
         db.session.rollback()
 
 
+def is_admin_user(user):
+    return bool(user and (user.role or "").strip().lower() == "admin")
+
+
 def is_developer_session():
     return bool(session.get("dev_maintenance_owner") is True)
 
@@ -689,7 +698,7 @@ def get_current_user():
             session.clear()
             return None
 
-        if (user.role or "").lower() != "admin":
+        if not is_admin_user(user):
             sess_token = session.get("session_token")
             if user.active_session_token and sess_token != user.active_session_token:
                 session.pop("user_id", None)
@@ -768,10 +777,11 @@ def upload_to_supabase(file_storage, folder="uploads"):
             "Content-Type": file_storage.mimetype or "application/octet-stream",
             "x-upsert": "true",
         }
-        resp = requests.post(upload_url, headers=headers, data=file_bytes, timeout=60)
-        if resp.status_code in (200, 201):
-            return f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{unique_name}"
-    except Exception:
+        req = url_request.Request(upload_url, data=file_bytes, headers=headers, method="POST")
+        with url_request.urlopen(req, timeout=60) as resp:
+            if 200 <= resp.status < 300:
+                return f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{unique_name}"
+    except (HTTPError, URLError, Exception):
         pass
     return None
 
@@ -1137,12 +1147,12 @@ def index():
 
 
 def _verify_password_safe(stored_hash, plain_password):
-    if not stored_hash:
+    if not stored_hash or not plain_password:
         return False
     try:
         return check_password_hash(stored_hash, plain_password)
     except Exception:
-        return stored_hash == plain_password
+        return secrets.compare_digest(stored_hash, plain_password)
 
 
 @app.route("/auth", methods=["GET", "POST"])
@@ -1222,7 +1232,7 @@ def auth():
             dev_username = os.environ.get("DEVELOPER_USERNAME", "").strip()
             if bool(getattr(s, "is_maintenance", False)) and not is_developer_session():
                 is_dev_user = bool(
-                    (user.role or "").lower() == "admin"
+                    is_admin_user(user)
                     and (not dev_username or user.username == dev_username)
                 )
                 if not is_dev_user:
@@ -1231,14 +1241,14 @@ def auth():
                 session["dev_maintenance_owner"] = True
 
             new_token = secrets.token_hex(24)
-            if (user.role or "").lower() != "admin":
+            if not is_admin_user(user):
                 user.active_session_token = new_token
                 db.session.commit()
 
             session["user_id"] = user.id
             session["session_token"] = new_token
             session["show_login_modal"] = True
-            if (user.role or "").lower() == "admin":
+            if is_admin_user(user):
                 return redirect(url_for("admin_dashboard"))
             return redirect(url_for("student_dashboard"))
 
@@ -1248,7 +1258,7 @@ def auth():
 @app.route("/logout")
 def logout():
     user = get_current_user()
-    if user and (user.role or "").lower() != "admin":
+    if user and not is_admin_user(user):
         try:
             user.active_session_token = None
             db.session.commit()
@@ -1271,7 +1281,7 @@ def student_dashboard():
         flash("يرجى تسجيل الدخول أولاً.", "warning")
         return redirect(url_for("auth", mode="login"))
 
-    if (user.role or "").lower() == "admin":
+    if is_admin_user(user):
         return redirect(url_for("admin_dashboard"))
 
     show_login_modal = bool(session.pop("show_login_modal", False))
@@ -1304,8 +1314,9 @@ def student_dashboard():
         )
 
     tab = request.args.get("tab", "overview")
-    week_id_raw = request.args.get("week_id")
-    selected_subscribe_week_id = int(request.args.get("subscribe_week_id")) if (request.args.get("subscribe_week_id") or "").isdigit() else None
+    week_id_raw = (request.args.get("week_id") or "").strip()
+    sub_week_raw = (request.args.get("subscribe_week_id") or "").strip()
+    selected_subscribe_week_id = int(sub_week_raw) if sub_week_raw.isdigit() else None
 
     try:
         user_norm_grade = normalize_grade_label(user.grade)
@@ -1575,8 +1586,8 @@ def take_exam(exam_id):
         flash("الاختبار غير موجود.", "danger")
         return redirect(url_for("student_dashboard", tab="exams"))
 
-    is_admin = (user.role or "").lower() == "admin"
-    back_url = url_for("admin_dashboard") if is_admin else url_for("student_dashboard", tab="exams")
+    admin_flag = is_admin_user(user)
+    back_url = url_for("admin_dashboard") if admin_flag else url_for("student_dashboard", tab="exams")
 
     attempt = (
         ExamAttempt.query.filter_by(exam_id=exam.id, user_id=user.id)
@@ -1595,7 +1606,7 @@ def take_exam(exam_id):
         attempt=attempt,
         saved_answers=saved_answers,
         evaluation=evaluation,
-        is_admin=is_admin,
+        is_admin=admin_flag,
         back_url=back_url,
         start_url=url_for("start_exam_attempt", exam_id=exam.id),
         submit_url=url_for("submit_exam_attempt", exam_id=exam.id),
@@ -1688,7 +1699,7 @@ def require_admin():
     if not user:
         flash("يرجى تسجيل الدخول أولاً.", "warning")
         return None, redirect(url_for("auth", mode="login"))
-    if (user.role or "").lower() != "admin":
+    if not is_admin_user(user):
         flash("هذه الصفحة مخصصة للإدارة فقط.", "danger")
         return None, redirect(url_for("student_dashboard"))
     return user, None
@@ -1708,7 +1719,7 @@ def dev_access_unlock(token):
 
 @app.route("/admin/toggle-maintenance", methods=["POST"])
 def toggle_maintenance():
-    admin_user, err_resp = require_admin()
+    _, err_resp = require_admin()
     if err_resp:
         return err_resp
 
@@ -1763,7 +1774,7 @@ def admin_dashboard():
 
     try:
         all_users = User.query.order_by(User.id.desc()).all()
-        all_students = [u for u in all_users if (u.role or "").lower() != "admin"]
+        all_students = [u for u in all_users if not is_admin_user(u)]
     except Exception:
         db.session.rollback()
         all_students = []
@@ -1904,7 +1915,7 @@ def toggle_student(student_id):
         return err_resp
 
     st = db.session.get(User, student_id)
-    if st and (st.role or "").lower() != "admin":
+    if st and not is_admin_user(st):
         st.is_active = not bool(st.is_active)
         db.session.commit()
         flash("تم تحديث حالة حساب الطالب بنجاح.", "success")
@@ -2052,7 +2063,7 @@ def add_content():
     if err_resp:
         return err_resp
 
-    week_id = request.form.get("week_id")
+    week_id = (request.form.get("week_id") or "").strip()
     lecture_title = (request.form.get("lecture_title") or "المحاضرة الأولى").strip() or "المحاضرة الأولى"
     title = (request.form.get("title") or "").strip()
     section_key = (request.form.get("section_key") or "explanation").strip()
@@ -2062,7 +2073,7 @@ def add_content():
     exam_id_raw = (request.form.get("exam_id") or "").strip()
     req_exam_raw = (request.form.get("required_exam_id") or "").strip()
 
-    week = db.session.get(WeekPackage, int(week_id)) if week_id and week_id.isdigit() else None
+    week = db.session.get(WeekPackage, int(week_id)) if week_id.isdigit() else None
     if not week or not title:
         flash("يرجى اختيار الباقة وإدخال عنوان العنصر.", "warning")
         return redirect(url_for("admin_dashboard"))
@@ -2198,8 +2209,8 @@ def add_question():
     if err_resp:
         return err_resp
 
-    exam_id = request.form.get("exam_id")
-    exam = db.session.get(Exam, int(exam_id)) if exam_id and exam_id.isdigit() else None
+    exam_id = (request.form.get("exam_id") or "").strip()
+    exam = db.session.get(Exam, int(exam_id)) if exam_id.isdigit() else None
     question_text = (request.form.get("question_text") or "").strip()
     opt_a = (request.form.get("option_a") or "").strip()
     opt_b = (request.form.get("option_b") or "").strip()
@@ -2276,8 +2287,8 @@ def generate_codes():
     code_type = (request.form.get("code_type") or "package").strip()
     if code_type == "center":
         code_type = "package"
-    week_id_raw = request.form.get("week_id")
-    week_id = int(week_id_raw) if week_id_raw and week_id_raw.isdigit() else None
+    week_id_raw = (request.form.get("week_id") or "").strip()
+    week_id = int(week_id_raw) if week_id_raw.isdigit() else None
 
     try:
         count = max(1, min(100, int(request.form.get("count") or 10)))
