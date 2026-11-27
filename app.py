@@ -758,32 +758,53 @@ def save_image_as_data_url(file_storage):
         return None
 
 
-def upload_to_supabase(file_storage, folder="uploads"):
-    if not SUPABASE_URL or not SUPABASE_KEY or not file_storage or not file_storage.filename:
-        return None
+def upload_to_supabase_with_error(file_storage, folder="uploads"):
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        return None, "متغيرات SUPABASE_URL أو SUPABASE_KEY غير مضبوطة على السيرفر."
+    if not file_storage or not file_storage.filename:
+        return None, "لم يتم استلام ملف مرفوع."
     try:
         safe_name = secure_filename(file_storage.filename) or "media"
         unique_name = f"{folder}/{secrets.token_hex(6)}_{safe_name}"
-        upload_url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_BUCKET}/{unique_name}"
+        encoded_path = quote(unique_name, safe="/")
+        upload_url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_BUCKET}/{encoded_path}"
 
         file_bytes = file_storage.read()
         file_storage.seek(0)
         if not file_bytes:
-            return None
+            return None, "ملف الفيديو فارغ (0 بايت)."
 
+        content_type = file_storage.mimetype or "application/octet-stream"
         headers = {
             "Authorization": f"Bearer {SUPABASE_KEY}",
             "apikey": SUPABASE_KEY,
-            "Content-Type": file_storage.mimetype or "application/octet-stream",
+            "Content-Type": content_type,
             "x-upsert": "true",
         }
         req = url_request.Request(upload_url, data=file_bytes, headers=headers, method="POST")
-        with url_request.urlopen(req, timeout=60) as resp:
+        with url_request.urlopen(req, timeout=25) as resp:
             if 200 <= resp.status < 300:
-                return f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{unique_name}"
-    except (HTTPError, URLError, Exception):
-        pass
-    return None
+                public_url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{encoded_path}"
+                return public_url, None
+            return None, f"استجابة غير متوقعة من Supabase: {resp.status}"
+    except HTTPError as e:
+        detail = ""
+        try:
+            detail = e.read().decode("utf-8", errors="ignore")
+        except Exception:
+            pass
+        msg = f"خطأ HTTP {e.code} من Supabase Storage: {detail or e.reason}"
+        app.logger.error(msg)
+        return None, msg
+    except (URLError, Exception) as e:
+        msg = f"تعذر الاتصال بـ Supabase Storage: {e}"
+        app.logger.error(msg)
+        return None, msg
+
+
+def upload_to_supabase(file_storage, folder="uploads"):
+    url, _ = upload_to_supabase_with_error(file_storage, folder=folder)
+    return url
 
 
 def save_uploaded_file(file_storage):
@@ -2004,8 +2025,12 @@ def add_week():
         db.session.flush()
 
         for vf in request.files.getlist("week_videos"):
-            v_url = save_uploaded_file(vf)
-            if v_url:
+            if vf and vf.filename:
+                v_url, v_err = upload_to_supabase_with_error(vf, folder="lectures")
+                if not v_url:
+                    db.session.rollback()
+                    flash(f"فشل رفع الفيديو ({vf.filename}): {v_err}", "danger")
+                    return redirect(url_for("admin_dashboard", grade="" if grade == "ALL_GRADES" else grade))
                 db.session.add(
                     CourseContent(
                         week_id=week.id,
@@ -2019,9 +2044,9 @@ def add_week():
 
         db.session.commit()
         flash("تمت إضافة الأسبوع / الباقة بنجاح.", "success")
-    except Exception:
+    except Exception as e:
         db.session.rollback()
-        flash("تعذر حفظ الأسبوع/الباقة، يرجى التحقق من البيانات أو حجم الملف المرفوع.", "danger")
+        flash(f"تعذر حفظ الأسبوع/الباقة: {e}", "danger")
 
     return redirect(url_for("admin_dashboard", grade="" if grade == "ALL_GRADES" else grade))
 
@@ -2081,8 +2106,16 @@ def add_content():
     try:
         source_path = external_link or None
         media_file = request.files.get("media_file")
-        uploaded_url = save_uploaded_file(media_file)
-        if uploaded_url:
+        if media_file and media_file.filename:
+            if not allowed_file(media_file.filename):
+                flash("صيغة الملف غير مدعومة.", "warning")
+                return redirect(url_for("admin_dashboard", manage_week_id=week.id))
+
+            uploaded_url, upload_err = upload_to_supabase_with_error(media_file, folder="lectures")
+            if not uploaded_url:
+                flash(f"فشل رفع الملف إلى Supabase Storage: {upload_err}", "danger")
+                return redirect(url_for("admin_dashboard", manage_week_id=week.id))
+
             source_path = uploaded_url
             if content_type == "video_link":
                 content_type = "video_upload"
@@ -2108,11 +2141,101 @@ def add_content():
             )
         )
         db.session.commit()
-        flash("تمت إضافة المحتوى داخل المحاضرة والباقة بنجاح.", "success")
-    except Exception:
+        flash("تمت إضافة المحتوى ورفع الملف إلى Supabase بنجاح.", "success")
+    except Exception as e:
         db.session.rollback()
-        flash("تعذر إضافة المحتوى حالياً، يرجى المحاولة مرة أخرى.", "danger")
+        flash(f"تعذر إضافة المحتوى حالياً: {e}", "danger")
 
+    return redirect(url_for("admin_dashboard", manage_week_id=week.id))
+
+
+@app.route("/api/supabase/upload-url", methods=["POST"])
+def create_supabase_upload_url():
+    _, err_resp = require_admin()
+    if err_resp:
+        return jsonify({"ok": False, "error": "unauthorized"}), 401
+
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        return jsonify({"ok": False, "error": "SUPABASE_URL or SUPABASE_KEY missing"}), 400
+
+    payload = request.get_json(silent=True) or {}
+    filename = secure_filename((payload.get("filename") or "").strip()) or "video.mp4"
+    if not allowed_file(filename):
+        return jsonify({"ok": False, "error": "unsupported file extension"}), 400
+
+    folder = (payload.get("folder") or "lectures").strip().strip("/") or "lectures"
+    object_path = f"{folder}/{secrets.token_hex(6)}_{filename}"
+    encoded_path = quote(object_path, safe="/")
+    signed_api_url = f"{SUPABASE_URL}/storage/v1/object/upload/sign/{SUPABASE_BUCKET}/{encoded_path}"
+
+    headers = {
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "apikey": SUPABASE_KEY,
+        "Content-Type": "application/json",
+    }
+    req = url_request.Request(signed_api_url, data=b"{}", headers=headers, method="POST")
+    try:
+        with url_request.urlopen(req, timeout=20) as resp:
+            raw = resp.read().decode("utf-8", errors="ignore")
+            data = json.loads(raw or "{}")
+            signed_rel = (data.get("url") or "").lstrip("/")
+            if not signed_rel:
+                return jsonify({"ok": False, "error": f"No signed url returned: {raw}"}), 500
+            signed_upload_url = (
+                f"{SUPABASE_URL}/storage/v1/{signed_rel}"
+                if not signed_rel.startswith("storage/v1/")
+                else f"{SUPABASE_URL}/{signed_rel}"
+            )
+            public_url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{encoded_path}"
+            return jsonify({
+                "ok": True,
+                "signed_url": signed_upload_url,
+                "public_url": public_url,
+                "object_path": object_path,
+            })
+    except HTTPError as e:
+        body = ""
+        try:
+            body = e.read().decode("utf-8", errors="ignore")
+        except Exception:
+            pass
+        return jsonify({"ok": False, "error": f"HTTP {e.code}: {body or e.reason}"}), 500
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/admin/contents/add-url", methods=["POST"])
+def add_content_from_url():
+    _, err_resp = require_admin()
+    if err_resp:
+        return err_resp
+
+    week_id = (request.form.get("week_id") or "").strip()
+    lecture_title = (request.form.get("lecture_title") or "المحاضرة الأولى").strip() or "المحاضرة الأولى"
+    title = (request.form.get("title") or "").strip()
+    section_key = (request.form.get("section_key") or "explanation").strip()
+    content_type = (request.form.get("content_type") or "video_upload").strip()
+    source_path = (request.form.get("source_path") or "").strip()
+    duration_or_notes = (request.form.get("duration_or_notes") or "").strip()
+
+    week = db.session.get(WeekPackage, int(week_id)) if week_id.isdigit() else None
+    if not week or not title or not source_path:
+        flash("يرجى استكمال بيانات المحتوى ورابط الفيديو.", "warning")
+        return redirect(url_for("admin_dashboard"))
+
+    db.session.add(
+        CourseContent(
+            week_id=week.id,
+            lecture_title=lecture_title,
+            title=title,
+            section_key=section_key,
+            content_type=content_type,
+            source_path=source_path,
+            duration_or_notes=duration_or_notes,
+        )
+    )
+    db.session.commit()
+    flash("تم حفظ الفيديو المرفوع على Supabase داخل المحاضرة بنجاح.", "success")
     return redirect(url_for("admin_dashboard", manage_week_id=week.id))
 
 
