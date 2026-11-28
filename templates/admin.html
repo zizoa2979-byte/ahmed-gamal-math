@@ -1098,6 +1098,83 @@
         window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
       }
     }
+    function isVideoFile(f) {
+      return !!f && (/^video\//.test(f.type) || /\.(mp4|mov|avi|mkv|webm)$/i.test(f.name));
+    }
+
+    async function uploadVideoDirect(file) {
+      const r = await fetch("/api/supabase/upload-url", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: file.name, folder: "lectures" })
+      });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || "تعذر إنشاء رابط الرفع");
+      const ct = j.content_type || file.type || "video/mp4";
+      const fd = new FormData();
+      fd.append("cacheControl", "3600");
+      fd.append("", new Blob([file], { type: ct }), file.name);
+      const up = await fetch(j.signed_url, { method: "PUT", body: fd });
+      if (!up.ok) throw new Error("فشل الرفع (" + up.status + "): " + (await up.text()));
+      return j.public_url;
+    }
+
+    document.querySelectorAll('form[action$="/admin/contents/add"]').forEach(function (form) {
+      form.addEventListener("submit", async function (e) {
+        const fileInput = form.querySelector('input[name="media_file"]');
+        const f = fileInput && fileInput.files[0];
+        if (!isVideoFile(f)) return;
+        e.preventDefault();
+        const btn = form.querySelector('button[type="submit"]');
+        const oldText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = "جاري رفع الفيديو... لا تغلق الصفحة";
+        try {
+          const url = await uploadVideoDirect(f);
+          form.querySelector('input[name="external_link"]').value = url;
+          form.querySelector('select[name="content_type"]').value = "video_upload";
+          fileInput.value = "";
+          form.submit();
+        } catch (err) {
+          alert(err.message);
+          btn.disabled = false;
+          btn.textContent = oldText;
+        }
+      });
+    });
+
+    document.querySelectorAll('form[action$="/admin/weeks/add"]').forEach(function (form) {
+      form.addEventListener("submit", async function (e) {
+        const inp = form.querySelector('input[name="week_videos"]');
+        const files = inp ? Array.from(inp.files).filter(isVideoFile) : [];
+        if (!files.length) return;
+        e.preventDefault();
+        const btn = form.querySelector('button[type="submit"]');
+        const oldText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = "جاري رفع الفيديوهات... لا تغلق الصفحة";
+        form.querySelectorAll("input[data-direct]").forEach(function (h) { h.remove(); });
+        try {
+          for (const f of files) {
+            const url = await uploadVideoDirect(f);
+            [["week_video_urls", url], ["week_video_titles", f.name]].forEach(function (pair) {
+              const h = document.createElement("input");
+              h.type = "hidden"; h.name = pair[0]; h.value = pair[1];
+              h.setAttribute("data-direct", "1");
+              form.appendChild(h);
+            });
+          }
+          inp.value = "";
+          form.submit();
+        } catch (err) {
+          alert(err.message);
+          btn.disabled = false;
+          btn.textContent = oldText;
+        }
+      });
+    });
+
     setTimeout(function () {
       document.querySelectorAll("#flashContainer .alert").forEach(function (el) {
         el.style.transition = "opacity 0.4s ease";

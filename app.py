@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from urllib import request as url_request
 from urllib.error import URLError, HTTPError
 from urllib.parse import quote, urlparse, parse_qs
+import mimetypes
 
 from flask import (
     Flask,
@@ -95,7 +96,7 @@ CONTENT_SECTIONS = [
 ]
 
 DEVELOPER_CREDIT = "تم التطوير بواسطة م/ عبد العزيز أمير"
-DEV_UNLOCK_TOKEN = os.environ.get("DEV_UNLOCK_TOKEN", "zizo-dev-2026")
+DEV_UNLOCK_TOKEN = os.environ.get("DEV_UNLOCK_TOKEN", "")
 
 
 def normalize_grade_label(raw_grade):
@@ -758,13 +759,29 @@ def save_image_as_data_url(file_storage):
         return None
 
 
+def safe_media_name(original_name, default_base="media"):
+    original_name = original_name or ""
+    if "." in original_name:
+        base_part, ext = original_name.rsplit(".", 1)
+        ext = ext.lower()
+    else:
+        base_part, ext = original_name, ""
+    base = secure_filename(base_part) or default_base
+    return f"{base}.{ext}" if ext else base
+
+
+def guess_content_type(filename, fallback=None):
+    guessed, _ = mimetypes.guess_type(filename or "")
+    return guessed or fallback or "application/octet-stream"
+
+
 def upload_to_supabase_with_error(file_storage, folder="uploads"):
     if not SUPABASE_URL or not SUPABASE_KEY:
         return None, "متغيرات SUPABASE_URL أو SUPABASE_KEY غير مضبوطة على السيرفر."
     if not file_storage or not file_storage.filename:
         return None, "لم يتم استلام ملف مرفوع."
     try:
-        safe_name = secure_filename(file_storage.filename) or "media"
+        safe_name = safe_media_name(file_storage.filename)
         unique_name = f"{folder}/{secrets.token_hex(6)}_{safe_name}"
         encoded_path = quote(unique_name, safe="/")
         upload_url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_BUCKET}/{encoded_path}"
@@ -774,7 +791,7 @@ def upload_to_supabase_with_error(file_storage, folder="uploads"):
         if not file_bytes:
             return None, "ملف الفيديو فارغ (0 بايت)."
 
-        content_type = file_storage.mimetype or "application/octet-stream"
+        content_type = guess_content_type(safe_name, file_storage.mimetype)
         headers = {
             "Authorization": f"Bearer {SUPABASE_KEY}",
             "apikey": SUPABASE_KEY,
@@ -1006,6 +1023,7 @@ def compute_student_level(user):
             "badge_class": badge_class,
         }
     except Exception:
+        app.logger.exception("compute_student_level failed")
         db.session.rollback()
         return {
             "watched_count": 0,
@@ -1679,14 +1697,21 @@ def submit_exam_attempt(exam_id):
         return redirect(url_for("take_exam", exam_id=exam.id))
 
     questions = ExamQuestion.query.filter_by(exam_id=exam.id).order_by(ExamQuestion.id.asc()).all()
-    answers = {}
-    for q in questions:
-        val = request.form.get(f"q_{q.id}")
-        if val in ("A", "B", "C", "D"):
-            answers[str(q.id)] = val
+    duration_sec = int((exam.duration_minutes or 20) * 60)
+    elapsed = (datetime.utcnow() - (attempt.started_at or datetime.utcnow())).total_seconds()
+    is_late = elapsed > duration_sec + 120
 
-    attempt.answers_json = json.dumps(answers, ensure_ascii=False)
-    action_type = request.form.get("action_type", "submit")
+    if is_late:
+        answers = parse_answers_json(attempt.answers_json)
+        action_type = "submit"
+    else:
+        answers = {}
+        for q in questions:
+            val = request.form.get(f"q_{q.id}")
+            if val in ("A", "B", "C", "D"):
+                answers[str(q.id)] = val
+        attempt.answers_json = json.dumps(answers, ensure_ascii=False)
+        action_type = request.form.get("action_type", "submit")
 
     if action_type == "save_later":
         db.session.commit()
@@ -2042,6 +2067,22 @@ def add_week():
                     )
                 )
 
+        for v_url, v_title in zip(
+            request.form.getlist("week_video_urls"),
+            request.form.getlist("week_video_titles"),
+        ):
+            if (v_url or "").strip():
+                db.session.add(
+                    CourseContent(
+                        week_id=week.id,
+                        lecture_title="المحاضرة الأولى",
+                        title=(v_title or "فيديو شرح"),
+                        section_key="explanation",
+                        content_type="video_upload",
+                        source_path=v_url.strip(),
+                    )
+                )
+
         db.session.commit()
         flash("تمت إضافة الأسبوع / الباقة بنجاح.", "success")
     except Exception as e:
@@ -2159,7 +2200,7 @@ def create_supabase_upload_url():
         return jsonify({"ok": False, "error": "SUPABASE_URL or SUPABASE_KEY missing"}), 400
 
     payload = request.get_json(silent=True) or {}
-    filename = secure_filename((payload.get("filename") or "").strip()) or "video.mp4"
+    filename = safe_media_name((payload.get("filename") or "").strip(), "video")
     if not allowed_file(filename):
         return jsonify({"ok": False, "error": "unsupported file extension"}), 400
 
@@ -2192,6 +2233,7 @@ def create_supabase_upload_url():
                 "signed_url": signed_upload_url,
                 "public_url": public_url,
                 "object_path": object_path,
+                "content_type": guess_content_type(filename),
             })
     except HTTPError as e:
         body = ""
